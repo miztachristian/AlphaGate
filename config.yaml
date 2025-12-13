@@ -1,0 +1,54 @@
+# Trading App Configuration
+
+# Indicator Parameters
+indicators:
+  rsi:
+    period: 14
+    overbought: 70
+    oversold: 30
+  
+  ema:
+    short: 20
+    medium: 50
+    long: 200
+  
+  macd:
+    fast: 12
+    slow: 26
+    signal: 9
+  
+  bollinger:
+    period: 20
+    std_dev: 2
+  
+  atr:
+    period: 14
+
+# Risk Management
+risk:
+  stop_loss_atr_multiplier: 1.5
+  take_profit_atr_multiplier: 2.5
+  position_size_percent: 2.0  # % of capital per trade
+
+# Volume Analysis
+volume:
+  spike_multiplier: 1.5  # Volume must be 1.5x average
+
+# Trading Preferences
+trading:
+  default_timeframe: "1h"
+  available_timeframes:
+    - "15m"
+    - "1h"
+    - "4h"
+    - "1d"
+  
+  # Default trading pairs
+  default_symbols:
+    - "BTCUSDT"
+    - "ETHUSDT"
+
+# Signal Requirements (how many conditions must match)
+signal_strength:
+  minimum_conditions: 2  # At least 2 indicators must align
+  strong_signal_conditions: 3  # 3+ conditions = high confidence
