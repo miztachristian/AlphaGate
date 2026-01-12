@@ -1,22 +1,20 @@
-# 🎯 Quick Reference - Trading Signals
+# 🎯 Quick Reference - Stock Trading Signals
 
 ## Command Cheat Sheet
 
 ```bash
-# Quick analysis
-python main.py --symbol BTC/USDT --timeframe 1h
+# Single stock analysis
+python main.py --symbol AAPL --timeframe 1h
+python main.py --symbol TSLA --timeframe 4h --days 90
 
-# Live monitoring
-python main.py --symbol BTC/USDT --timeframe 1h --live
+# Multi-stock live monitoring
+python run_live_stocks.py --universe data/universe.csv --timeframe 1h --interval 60
 
-# Save data
-python main.py --symbol ETH/USDT --timeframe 4h --save
+# Outcome evaluation (after alerts are logged)
+python -m src.evaluation.outcome_logger --db-path alerts_log.db --max-alerts 500
 
-# Different exchange
-python main.py --symbol BTC/USDT --timeframe 1h --exchange kraken
-
-# More data
-python main.py --symbol BTC/USDT --timeframe 1h --limit 1000
+# Generate outcome reports
+python -m src.evaluation.reporting --db-path alerts_log.db --output-dir reports
 ```
 
 ---
@@ -28,11 +26,12 @@ python main.py --symbol BTC/USDT --timeframe 1h --limit 1000
 
 **When it appears:**
 - RSI bouncing from oversold (<30)
-- Price at 20 EMA support in uptrend
+- Price reclaiming Bollinger Band lower band
 - MACD turning positive
 - Volume confirming
+- Trend regime not strongly bearish
 
-**Action:** Consider long entry at current price
+**Action:** Consider long entry near entry zone
 
 ---
 
@@ -41,11 +40,12 @@ python main.py --symbol BTC/USDT --timeframe 1h --limit 1000
 
 **When it appears:**
 - RSI falling from overbought (>70)
-- Price at 20 EMA resistance in downtrend
+- Price breaking below Bollinger Band upper band
 - MACD turning negative
 - Volume confirming
+- Trend regime not strongly bullish
 
-**Action:** Consider short entry at current price
+**Action:** Consider short entry near entry zone
 
 ---
 
@@ -56,89 +56,100 @@ python main.py --symbol BTC/USDT --timeframe 1h --limit 1000
 - Less than 2 conditions met
 - Conflicting signals
 - Low volume
-- Low volatility
+- Dead volatility regime
 
 **Action:** Wait and monitor
 
 ---
 
-## Confidence Levels
+## Score & Confidence Levels
 
-| Level | Conditions | Action |
-|-------|-----------|--------|
-| **HIGH** | 3+ indicators align | Strong setup - take the trade |
-| **MEDIUM** | 2 indicators align | Valid setup - trade with caution |
-| **LOW** | 1 indicator only | Not enough edge - skip |
+| Score Range | Confidence | Action |
+|-------------|-----------|--------|
+| **80-100** | HIGH | Strong setup - take the trade |
+| **60-80** | MEDIUM | Valid setup - trade with caution |
+| **40-60** | LOW | Marginal edge - consider skipping |
+| **0-40** | VERY LOW | Not enough edge - skip |
 
 ---
 
-## Risk Assessment
+## Regime Classification
 
-| Status | Meaning | Action |
-|--------|---------|--------|
-| **TRADE** | All filters passed | Safe to trade |
-| **CAUTION** | 1 warning flag | Trade with reduced size |
-| **SKIP** | 2+ warning flags | Don't trade, wait |
+### Volatility Regime (ATR%)
+| Regime | Meaning | Trading Implications |
+|--------|---------|---------------------|
+| **PANIC** | ATR% >= 90th percentile | Wide stops, high risk |
+| **NORMAL** | Between 20th-90th | Standard trading |
+| **DEAD** | ATR% <= 20th percentile | Low volatility, skip |
 
-### Warning Flags:
-- ⚠️ Low volatility (market too quiet)
-- ⚠️ Trading against main trend (risky)
-- ⚠️ Low volume (weak confirmation)
+### Trend Regime (EMA200)
+| Regime | Meaning | Trading Implications |
+|--------|---------|---------------------|
+| **STRONG_UPTREND** | Price > EMA200 + 1 ATR | Favor longs |
+| **UPTREND** | Price > EMA200 | Slight long bias |
+| **NEUTRAL** | Price near EMA200 | No bias |
+| **DOWNTREND** | Price < EMA200 | Slight short bias |
+| **STRONG_DOWNTREND** | Price < EMA200 - 1 ATR | Favor shorts |
+
+---
+
+## News Risk Levels
+
+| Risk Level | Meaning | Action |
+|------------|---------|--------|
+| **HIGH** | Earnings, SEC, lawsuits | Caution - binary event risk |
+| **MEDIUM** | Upgrades/downgrades, M&A | Monitor closely |
+| **LOW** | No significant news | Standard trading |
 
 ---
 
 ## Entry/Exit Levels
 
 ### Stop Loss
-- Calculated at **1.5-2x ATR** from entry
+- Calculated at **0.7x ATR** from entry (configurable)
 - Protects against adverse moves
-- Adjustable in config.yaml
 
-### Take Profit
-- Calculated at **2.5-3x ATR** from entry
-- Targets realistic profit
-- Gives ~2.5:1 risk/reward ratio
+### Take Profit (Target)
+- Calculated at **1.0x ATR** from entry (configurable)
+- Conservative target based on hit rule
 
-### Example:
+### Example (AAPL at $185):
 ```
-Entry: $42,350
-Stop Loss: $41,875 (-$475, 1.5x ATR)
-Take Profit: $43,538 (+$1,188, 2.5x ATR)
-Risk/Reward: 1:2.50
+Entry: $185.00
+ATR: $2.50
+Stop Loss: $183.25 (-$1.75, 0.7x ATR)
+Take Profit: $187.50 (+$2.50, 1.0x ATR)
+Risk/Reward: 1:1.43
 ```
 
 ---
 
 ## Timeframe Guide
 
-| Timeframe | Best For | Update Frequency |
-|-----------|----------|------------------|
-| **15m** | Day trading, scalping | Every 15 minutes |
-| **1h** | Intraday swings | Every hour |
-| **4h** | Swing trading | Every 4 hours |
-| **1d** | Position trading | Daily |
-
-**Pro Tip:** Confirm 1h signals with 4h trend!
+| Timeframe | Best For | Hold Window | Horizons |
+|-----------|----------|-------------|----------|
+| **1h** | Intraday swings | 6-24 hours | 4h, 12h, 24h, 48h |
+| **4h** | Swing trading | 1-3 days | 24h, 48h, 72h |
+| **1d** | Position trading | 3-7 days | 24h, 72h, 168h |
 
 ---
 
-## Popular Trading Pairs
+## Popular Stock Commands
 
 ```bash
-# Bitcoin
-python main.py --symbol BTC/USDT --timeframe 1h
+# Tech giants
+python main.py --symbol AAPL --timeframe 1h
+python main.py --symbol MSFT --timeframe 1h
+python main.py --symbol NVDA --timeframe 4h
+python main.py --symbol GOOGL --timeframe 4h
 
-# Ethereum
-python main.py --symbol ETH/USDT --timeframe 1h
+# High-beta stocks
+python main.py --symbol TSLA --timeframe 1h
+python main.py --symbol AMD --timeframe 1h
 
-# Solana
-python main.py --symbol SOL/USDT --timeframe 1h
-
-# Cardano
-python main.py --symbol ADA/USDT --timeframe 1h
-
-# Ripple
-python main.py --symbol XRP/USDT --timeframe 1h
+# ETFs
+python main.py --symbol SPY --timeframe 4h
+python main.py --symbol QQQ --timeframe 4h
 ```
 
 ---
@@ -149,21 +160,27 @@ Edit `config.yaml` to change:
 
 ```yaml
 # Make RSI more/less sensitive
-rsi:
-  overbought: 70  # Lower = more short signals
-  oversold: 30    # Higher = more long signals
+indicators:
+  rsi:
+    overbought: 70  # Lower = more short signals
+    oversold: 30    # Higher = more long signals
 
-# Adjust stop-loss tightness
-risk:
-  stop_loss_atr_multiplier: 1.5  # Lower = tighter stops
+# Data quality
+data_quality:
+  min_bars:
+    "1h": 350  # Minimum bars needed for indicators
+    "4h": 250
+    "1d": 200
 
-# Change volume sensitivity
-volume:
-  spike_multiplier: 1.5  # Lower = more signals
+# Hit rule (target/stop levels)
+outcome_eval:
+  hit_rule:
+    target_atr: 1.0  # 1x ATR target
+    stop_atr: 0.7    # 0.7x ATR stop
 
-# Require more confirmation
-signal_strength:
-  minimum_conditions: 3  # Higher = fewer but stronger signals
+# Alert cooldown
+alerts:
+  cooldown_minutes: 60  # Don't repeat same alert within this window
 ```
 
 ---
@@ -171,43 +188,43 @@ signal_strength:
 ## Troubleshooting
 
 ### No signals appearing?
-- Try different timeframe (4h usually better)
-- Lower minimum_conditions in config
-- Check if market is consolidating (expected)
+- Check if market is open (US market hours: 9:30 AM - 4:00 PM ET)
+- Try different timeframe (4h usually better for swing trades)
+- Verify stock has sufficient volume and volatility
 
-### Too many signals?
-- Increase minimum_conditions to 3
-- Use stricter RSI levels (25/75)
-- Only trade HIGH confidence signals
+### Cache issues?
+- Cache is stored in `cache/` directory (DuckDB/Parquet)
+- Delete cache folder to force full refresh
+- Check `data_quality.min_bars` settings
 
-### App not connecting?
-- Check internet connection
-- Try different exchange (--exchange kraken)
-- App will use synthetic data if connection fails
+### API rate limits?
+- Polygon Starter plan: ~5 requests/second
+- Set `MAX_REQUESTS_PER_SECOND` in .env
+- Enable caching to reduce API calls
 
 ---
 
 ## Best Practices
 
-1. **Multi-timeframe confirmation**
-   - Check 1h signal against 4h trend
-   - Don't short into rising 4h trend
+1. **Use the cache system**
+   - Dramatically reduces API calls
+   - Faster scanning for large universes
 
-2. **Wait for volume**
-   - High volume = real move
-   - Low volume = often fake
+2. **Review outcome reports**
+   - Check hit rates by score bucket
+   - Understand which regimes work best
 
-3. **Respect the trend**
-   - Long in uptrends (50>200)
-   - Short in downtrends (50<200)
+3. **Respect regime filters**
+   - Avoid DEAD volatility regime
+   - Consider trend alignment
 
-4. **Use proper position sizing**
-   - Risk 1-2% per trade
-   - Use provided stop-loss levels
+4. **Use alert deduplication**
+   - SQLite state store prevents spam
+   - Configure cooldown_minutes
 
-5. **Keep a trading journal**
-   - Track your signals
-   - Learn what works best for you
+5. **Monitor news risk**
+   - HIGH risk = earnings/SEC/legal
+   - Consider reducing size or skipping
 
 ---
 
@@ -216,4 +233,4 @@ signal_strength:
 - Check [README.md](README.md) for full documentation
 - See [STRATEGY_GUIDE.md](STRATEGY_GUIDE.md) for strategy details
 - Review [EXAMPLES.md](EXAMPLES.md) for usage examples
-- Run `python main.py --help` for command options
+- See [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) for codebase overview

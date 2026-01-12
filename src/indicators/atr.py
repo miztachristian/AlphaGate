@@ -1,16 +1,48 @@
 """
 ATR (Average True Range) Indicator
 Used for volatility measurement and risk management.
+
+Uses standard Wilder smoothing (not simple rolling mean) for proper ATR calculation.
 """
 
 import pandas as pd
+import numpy as np
 from typing import Dict
+
+
+def calculate_true_range(high: pd.Series, low: pd.Series, close: pd.Series) -> pd.Series:
+    """
+    Calculate True Range for each bar.
+    
+    True Range = max(high-low, abs(high-prev_close), abs(low-prev_close))
+    
+    Args:
+        high: Series of high prices
+        low: Series of low prices
+        close: Series of close prices
+    
+    Returns:
+        Series with True Range values
+    """
+    prev_close = close.shift(1)
+    
+    tr1 = high - low
+    tr2 = (high - prev_close).abs()
+    tr3 = (low - prev_close).abs()
+    
+    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    return true_range
 
 
 def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series, 
                   period: int = 14) -> pd.Series:
     """
-    Calculate Average True Range (ATR).
+    Calculate Average True Range (ATR) using Wilder smoothing.
+    
+    Wilder smoothing uses the update rule:
+    ATR[t] = (ATR[t-1] * (period - 1) + TR[t]) / period
+    
+    This produces smoother, more stable ATR values compared to simple rolling mean.
     
     Args:
         high: Series of high prices
@@ -19,17 +51,68 @@ def calculate_atr(high: pd.Series, low: pd.Series, close: pd.Series,
         period: ATR period (default: 14)
     
     Returns:
-        Series with ATR values
+        Series with ATR values. NaN for first `period` bars (warmup).
     """
-    # True Range calculation
-    tr1 = high - low
-    tr2 = abs(high - close.shift())
-    tr3 = abs(low - close.shift())
+    true_range = calculate_true_range(high, low, close)
     
-    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
-    atr = true_range.rolling(window=period).mean()
+    # Initialize ATR with NaN
+    atr = pd.Series(np.nan, index=close.index)
+    
+    # First ATR is simple mean over first period
+    if len(close) > period:
+        atr.iloc[period] = true_range.iloc[1:period + 1].mean()
+        
+        # Wilder smoothing for remaining bars
+        for i in range(period + 1, len(close)):
+            atr.iloc[i] = (atr.iloc[i - 1] * (period - 1) + true_range.iloc[i]) / period
     
     return atr
+
+
+def calculate_atr_vectorized(high: pd.Series, low: pd.Series, close: pd.Series, 
+                             period: int = 14) -> pd.Series:
+    """
+    Calculate ATR using Wilder smoothing - vectorized version for performance.
+    
+    Uses pandas ewm with alpha = 1/period which is equivalent to Wilder smoothing.
+    
+    Args:
+        high: Series of high prices
+        low: Series of low prices
+        close: Series of close prices
+        period: ATR period (default: 14)
+    
+    Returns:
+        Series with ATR values. NaN for first `period` bars (warmup).
+    """
+    true_range = calculate_true_range(high, low, close)
+    
+    # Wilder smoothing is equivalent to EMA with alpha = 1/period
+    alpha = 1.0 / period
+    atr = true_range.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+    
+    # Mark warmup period as NaN
+    atr.iloc[:period] = np.nan
+    
+    return atr
+
+
+def calculate_atr_percent(atr: pd.Series, close: pd.Series) -> pd.Series:
+    """
+    Calculate ATR as a percentage of price.
+    
+    ATR% = ATR / close * 100
+    
+    Useful for comparing volatility across different price levels.
+    
+    Args:
+        atr: Series of ATR values
+        close: Series of close prices
+    
+    Returns:
+        Series with ATR percentage values
+    """
+    return (atr / close) * 100
 
 
 def calculate_stop_loss(entry_price: float, atr: float, position_type: str,

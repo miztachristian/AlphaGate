@@ -1,6 +1,8 @@
 """
 RSI (Relative Strength Index) Indicator
 Measures momentum strength and overbought/oversold conditions.
+
+Uses standard Wilder smoothing (not simple rolling mean) for proper RSI calculation.
 """
 
 import pandas as pd
@@ -10,22 +12,88 @@ from typing import Dict, Optional
 
 def calculate_rsi(prices: pd.Series, period: int = 14) -> pd.Series:
     """
-    Calculate RSI (Relative Strength Index).
+    Calculate RSI using Wilder smoothing (standard RSI).
+    
+    Wilder smoothing uses exponential smoothing with a specific update rule:
+    avg_gain[t] = (avg_gain[t-1] * (period - 1) + gain[t]) / period
+    
+    This produces smoother, more stable RSI values compared to simple rolling mean.
     
     Args:
         prices: Series of closing prices
         period: RSI period (default: 14)
     
     Returns:
-        Series with RSI values (0-100)
+        Series with RSI values (0-100). NaN for first `period` bars (warmup).
     """
     delta = prices.diff()
     
-    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    gain = delta.where(delta > 0, 0.0)
+    loss = (-delta).where(delta < 0, 0.0)
     
-    rs = gain / loss
+    # Initialize with NaN
+    avg_gain = pd.Series(np.nan, index=prices.index)
+    avg_loss = pd.Series(np.nan, index=prices.index)
+    
+    # First average is simple mean over first period (need period+1 prices for period deltas)
+    if len(prices) > period:
+        avg_gain.iloc[period] = gain.iloc[1:period + 1].mean()
+        avg_loss.iloc[period] = loss.iloc[1:period + 1].mean()
+        
+        # Wilder smoothing for remaining bars
+        for i in range(period + 1, len(prices)):
+            avg_gain.iloc[i] = (avg_gain.iloc[i - 1] * (period - 1) + gain.iloc[i]) / period
+            avg_loss.iloc[i] = (avg_loss.iloc[i - 1] * (period - 1) + loss.iloc[i]) / period
+    
+    # Calculate RS and RSI
+    rs = avg_gain / avg_loss
     rsi = 100 - (100 / (1 + rs))
+    
+    # Handle division by zero cases only where we have valid averages
+    # When avg_loss is 0 (all gains): RSI = 100
+    # When avg_gain is 0 (all losses): RSI = 0
+    # Keep NaN for warmup period where avg_gain/avg_loss are NaN
+    
+    # Only replace where avg_loss is 0 but avg_gain is valid (not NaN)
+    all_gains_mask = (avg_loss == 0) & (avg_gain.notna())
+    rsi = rsi.where(~all_gains_mask, 100.0)
+    
+    # Only replace where avg_gain is 0 but avg_loss is valid (not NaN)
+    all_losses_mask = (avg_gain == 0) & (avg_loss.notna())
+    rsi = rsi.where(~all_losses_mask, 0.0)
+    
+    return rsi
+
+
+def calculate_rsi_vectorized(prices: pd.Series, period: int = 14) -> pd.Series:
+    """
+    Calculate RSI using Wilder smoothing - vectorized version for performance.
+    
+    Uses pandas ewm with alpha = 1/period which is equivalent to Wilder smoothing.
+    
+    Args:
+        prices: Series of closing prices
+        period: RSI period (default: 14)
+    
+    Returns:
+        Series with RSI values (0-100). NaN for first `period` bars (warmup).
+    """
+    delta = prices.diff()
+    
+    gain = delta.where(delta > 0, 0.0)
+    loss = (-delta).where(delta < 0, 0.0)
+    
+    # Wilder smoothing is equivalent to EMA with alpha = 1/period
+    # Using adjust=False for proper Wilder smoothing
+    alpha = 1.0 / period
+    avg_gain = gain.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+    avg_loss = loss.ewm(alpha=alpha, adjust=False, min_periods=period).mean()
+    
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    
+    # Mark warmup period as NaN
+    rsi.iloc[:period] = np.nan
     
     return rsi
 

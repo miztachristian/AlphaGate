@@ -9,7 +9,12 @@ A Python-based trading application that analyzes technical indicators and genera
 - **Signal Generation**: Automated long/short alerts based on your strategy rules
 - **Multiple Timeframes**: Support for 15m, 1H, 4H, 1D chart intervals
 - **Risk Management**: ATR-based stop-loss and take-profit calculations
-- **Live Monitoring**: Continuous stock monitoring with news sentiment validation
+- **OHLCV Cache System**: DuckDB/Parquet caching with REST-incremental updates
+- **News Risk Labeling**: Polygon.io news integration with keyword-based risk flags
+- **Regime Detection**: Volatility (PANIC/NORMAL/DEAD) and trend (UPTREND/DOWNTREND/NEUTRAL) classification
+- **Mean Reversion Setups**: Bollinger Band reclaim strategy with RSI confirmation
+- **Outcome Evaluation**: MFE/MAE analysis and hit rate tracking for signal calibration
+- **Live Monitoring**: Continuous stock monitoring with alert deduplication
 - **Notifications**: Telegram and Email alerts for trading signals
 
 ## Strategy Logic
@@ -61,17 +66,17 @@ python run_live_stocks.py --universe data/universe.csv --timeframe 1h --interval
 ```
 trade-app/
 ├── src/
-│   ├── indicators/       # Technical indicator calculations (RSI, EMA, MACD, etc.)
-│   ├── strategy/         # Trading strategy engine & rules
-│   ├── signals/          # Signal generation
-│   ├── marketdata/       # Stock data fetching (Polygon.io API)
-│   ├── news/             # News fetching & sentiment analysis
+│   ├── indicators/       # Technical indicators (RSI, EMA, MACD, ATR, Bollinger, Volume)
+│   ├── strategy/         # Trading strategy engine & rule definitions
+│   ├── marketdata/       # OHLCV fetching (Polygon.io) + cache system (DuckDB/SQLite)
+│   ├── news/             # News API + risk labeling (HIGH/MEDIUM/LOW keywords)
 │   ├── state/            # SQLite state store for alert deduplication
 │   ├── notify/           # Telegram & Email notifiers
 │   ├── runner/           # Live monitoring orchestration
-│   └── universe/         # Stock universe CSV loader
-├── data/                 # Universe CSV and sample data
-│   └── universe.csv      # List of stocks to monitor
+│   ├── universe/         # Stock universe CSV loader
+│   └── evaluation/       # Outcome analysis (MFE/MAE, hit rates, reports)
+├── data/                 # Universe CSV files
+├── reports/              # Generated outcome analysis reports
 ├── main.py               # Single stock analysis CLI
 ├── run_live_stocks.py    # Multi-stock live monitor CLI
 ├── config.yaml           # Configuration file
@@ -87,24 +92,26 @@ Edit `config.yaml` to customize:
 - Alert preferences
 
 ### Environment Variables
+
+Copy `.env.example` to `.env` and fill in your values:
+
 ```bash
-# Required: Polygon.io API key for market data
-POLYGON_API_KEY=your_polygon_api_key
-
-# Optional: For news sentiment validation
-NEWSAPI_KEY=your_newsapi_key
-
-# Optional: For Telegram notifications
-TELEGRAM_BOT_TOKEN=your_bot_token
-TELEGRAM_CHAT_ID=your_chat_id
-
-# Optional: For Email notifications (in .env file)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your_email
-SMTP_PASS=your_app_password
-ALERT_RECIPIENT=recipient@email.com
+cp .env.example .env
+# Edit .env with your API keys and credentials
 ```
+
+> **⚠️ SECURITY WARNING:**  
+> **Never commit `.env` to version control or include it in ZIP files.**  
+> Use environment variables or a secrets manager in production.  
+> The `.env` file contains sensitive credentials (API keys, passwords, tokens).
+
+Required variables:
+- `POLYGON_API_KEY` - Polygon.io API key for market data and news
+
+Optional variables:
+- `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` - For Telegram alerts
+- `SMTP_*` - For email alerts
+- `MASSIVE_S3_*` - For S3 flat files backfill
 
 ## License
 

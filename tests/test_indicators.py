@@ -19,7 +19,7 @@ class TestIndicators(unittest.TestCase):
         """Set up test data."""
         # Create sample price data
         np.random.seed(42)
-        dates = pd.date_range('2024-01-01', periods=100, freq='1H')
+        dates = pd.date_range('2024-01-01', periods=100, freq='1h')
         
         # Generate trending price data
         base = 50000
@@ -32,11 +32,14 @@ class TestIndicators(unittest.TestCase):
         """Test RSI calculation."""
         rsi = calculate_rsi(self.prices, period=14)
         
-        # RSI should be between 0 and 100
-        self.assertTrue((rsi >= 0).all())
-        self.assertTrue((rsi <= 100).all())
+        # Drop NaN warmup values before checking range
+        rsi_valid = rsi.dropna()
         
-        # Should have NaN values for first period
+        # RSI should be between 0 and 100 for valid (non-NaN) values
+        self.assertTrue((rsi_valid >= 0).all())
+        self.assertTrue((rsi_valid <= 100).all())
+        
+        # Should have NaN values for warmup period
         self.assertTrue(rsi.iloc[:14].isna().any())
     
     def test_rsi_signal_analysis(self):

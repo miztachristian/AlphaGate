@@ -17,6 +17,12 @@ from __future__ import annotations
 import argparse
 import time
 from typing import List, Tuple
+import os
+
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from src.strategy.engine import StrategyEngine
 from src.universe import load_universe_csv
@@ -72,6 +78,16 @@ def main() -> int:
         default=1.0,
         help="Delay between API calls in seconds (free tier: 12.0 for 5 calls/min, paid: 0.5)",
     )
+    parser.add_argument(
+        "--skip-market-check",
+        action="store_true",
+        help="Skip market status check (scan regardless of market hours)",
+    )
+    parser.add_argument(
+        "--no-extended-hours",
+        action="store_true",
+        help="Only scan during regular market hours (skip pre/post market)",
+    )
 
     args = parser.parse_args()
 
@@ -91,6 +107,8 @@ def main() -> int:
         news_lookback_hours=args.news_lookback_hours,
         news_required_alignment=bool(args.require_news_alignment),
         rate_limit_delay=args.rate_limit,
+        check_market_status=not args.skip_market_check,
+        allow_extended_hours=not args.no_extended_hours,
     )
 
     verbose = not args.quiet

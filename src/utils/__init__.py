@@ -1,11 +1,8 @@
 """
 Utils Package
-Helper functions for data fetching and processing.
+Helper functions for data processing.
+
+Note: Market data fetching has been moved to src/marketdata/stocks_v2.py
 """
 
-from .data_fetcher import fetch_market_data, load_sample_data
-
-__all__ = [
-    'fetch_market_data',
-    'load_sample_data'
-]
+__all__ = []

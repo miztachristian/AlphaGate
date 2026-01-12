@@ -9,9 +9,13 @@ import argparse
 import sys
 from colorama import init, Fore, Style
 from datetime import datetime
+from dotenv import load_dotenv
 
 from src.strategy.engine import StrategyEngine
 from src.marketdata.stocks import fetch_stock_ohlcv
+
+# Load environment variables
+load_dotenv()
 
 # Initialize colorama for colored terminal output
 init(autoreset=True)

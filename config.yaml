@@ -52,3 +52,152 @@ trading:
 signal_strength:
   minimum_conditions: 2  # At least 2 indicators must align
   strong_signal_conditions: 3  # 3+ conditions = high confidence
+
+# Data Quality Settings
+data_quality:
+  # Minimum bars required per timeframe
+  min_bars:
+    "1h": 350
+    "4h": 250
+    "1d": 200
+  
+  # Gap detection
+  # Note: Stock markets have normal gaps due to market hours (9:30 AM - 4:00 PM ET)
+  # - Overnight gaps: ~17 hours (17x for 1h bars)
+  # - Weekend gaps: ~65 hours (65x for 1h bars)  
+  # - Holiday gaps: up to ~113 hours (113x for 1h bars, e.g., Christmas weekend)
+  # Set multiplier high enough to allow normal market gaps
+  max_gaps_in_lookback: 5  # Max allowed gaps in lookback period (weekends + holidays)
+  gap_lookback_bars: 200
+  max_single_gap_multiplier: 120.0  # Gap > 120x interval = bad data (allows 5-day holidays)
+  
+  # Drop incomplete (in-progress) candles
+  drop_partial_candles: true
+  
+  # Use adjusted vs unadjusted data (unadjusted recommended for intraday)
+  use_adjusted: false
+
+# Market Status Settings
+market_status:
+  # Check market status before scanning (saves API calls when market is closed)
+  check_before_scan: true
+  
+  # Allow scanning during extended hours (pre-market 4am-9:30am, after-hours 4pm-8pm ET)
+  allow_extended_hours: true
+  
+  # If market status API fails, should we proceed with scan?
+  fallback_on_error: true
+
+# Mean Reversion Setup (MEAN_REVERSION_BB_RECLAIM)
+mean_reversion:
+  enabled: true
+  
+  # Bollinger Band reclaim settings
+  bb_period: 20
+  bb_std_dev: 2.0
+  lookback_overshoot: 5  # Look for overshoot in last N bars
+  
+  # RSI cross confirmation
+  rsi_cross_threshold: 35  # RSI crosses up through this level
+  rsi_period: 14
+  
+  # Volatility regime (ATR%)
+  vol_regime:
+    panic_percentile: 90  # ATR% >= 90th percentile = PANIC
+    dead_percentile: 20   # ATR% <= 20th percentile = DEAD
+    lookback_bars: 200
+  
+  # Trend regime (EMA200)
+  trend_regime:
+    ema_slope_lookback: 20  # Bars to measure EMA200 slope
+    strong_downtrend_atr_threshold: 1.0  # Price > 1 ATR below EMA200
+  
+  # Entry zone
+  entry_zone_pct: 0.5  # +/- 0.5% from trigger close
+  
+  # Scoring adjustments
+  scoring:
+    base_score: 60
+    strong_rsi_bonus: 15  # RSI >= threshold + 5
+    low_vol_bonus: 10     # ATR% below 70th percentile
+    good_trend_bonus: 10  # Not strong downtrend
+    low_volume_penalty: 15  # Volume < 70% of SMA20
+  
+  # Hold window expectations
+  hold_window:
+    "1h": "6-24h"
+    "4h": "1-3d"
+    "1d": "3-7d"
+
+# News Risk Settings (using Polygon.io News API)
+news:
+  enabled: true
+  
+  # Cache TTL in minutes (reduces API calls)
+  cache_ttl_minutes: 30
+  
+  # Lookback hours per timeframe (auto-selected based on timeframe)
+  # Can be overridden in CLI with --news-lookback-hours
+  lookback_by_timeframe:
+    "1h": 24
+    "4h": 48
+    "1d": 72
+  
+  # Risk labeling keywords (headlines only, no sentiment scoring)
+  # HIGH = potential binary events, legal issues
+  high_risk_keywords:
+    - "earnings"
+    - "guidance"
+    - "SEC"
+    - "investigation"
+    - "lawsuit"
+    - "fraud"
+    - "restatement"
+    - "offering"
+    - "bankruptcy"
+    - "delisting"
+    - "subpoena"
+    - "indictment"
+  
+  # MEDIUM = market-moving but not binary
+  medium_risk_keywords:
+    - "downgrade"
+    - "upgrade"
+    - "price target"
+    - "tariff"
+    - "inflation"
+    - "rates"
+    - "acquisition"
+    - "merger"
+    - "layoffs"
+    - "restructuring"
+
+# Alert Settings
+alerts:
+  cooldown_minutes: 60  # Don't repeat same alert within this window
+  max_evidence_bullets: 3
+  
+  # Logging for calibration
+  log_alerts: true
+  alert_log_db: "alerts_log.db"
+
+# Outcome Evaluation Settings
+outcome_eval:
+  # Horizons in hours for each timeframe
+  horizons_1h: [4, 12, 24, 48]
+  horizons_4h: [24, 48, 72]
+  horizons_1d: [24, 72, 168]
+  
+  # MFE/MAE calculation uses high/low (true) or close only (false)
+  mfe_mae_use_high_low: true
+  
+  # Tolerance for horizon completion (in bars)
+  # If last closed candle is within N bars of horizon_end, consider it complete
+  horizon_tolerance_bars: 1
+  
+  # Hit rule: target/stop levels as ATR multiples
+  hit_rule:
+    type: "ATR_MULTIPLE"
+    target_atr: 1.0   # Target = entry + 1.0 * ATR (LONG)
+    stop_atr: 0.7     # Stop = entry - 0.7 * ATR (LONG)
+

@@ -1,0 +1,16 @@
+services:
+  trader:
+    build: .
+    container_name: trade-bot
+    restart: unless-stopped
+    volumes:
+      # Persist the state database
+      - ./state.db:/app/state.db
+      # Persist data folder (universe.csv, etc)
+      - ./data:/app/data
+      # Mount config so you can edit it on host
+      - ./config.yaml:/app/config.yaml
+      # Mount .env so secret keys are loaded
+      - ./.env:/app/.env
+    # User user's ID to avoid permission issues with mounted files
+    # user: "1000:1000" 

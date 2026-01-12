@@ -1,136 +1,147 @@
-# 📊 Trading App - Strategy Overview
+# 📊 Trading App - Strategy Guide
 
-## Your Trading Strategy Implementation
+## Overview
 
-This app implements **every rule** from your trading strategy playbook!
+This app implements a **mean reversion strategy** with regime filters to identify high-probability trade setups in US equities.
 
 ---
 
 ## 🎯 What This App Does
 
-Analyzes real-time market data and generates **high-probability trading signals** by combining multiple technical indicators exactly as you described.
+Analyzes real-time stock data via Polygon.io and generates **scored trading signals** by combining multiple technical indicators with regime awareness.
 
-### Signal Types:
-- **🟢 LONG** - Buy/Long position signals
-- **🔴 SHORT** - Sell/Short position signals  
-- **🟡 NEUTRAL** - No clear setup (wait)
+### Signal Types
+- **🟢 LONG** - Buy signal (expect price to rise)
+- **🔴 SHORT** - Sell/Short signal (expect price to fall)
+- **⚪ NEUTRAL** - No clear setup (wait)
 
-### Confidence Levels:
-- **HIGH** - 3+ conditions met (take the trade!)
-- **MEDIUM** - 2 conditions met (valid setup)
-- **LOW** - 1 condition (not enough edge)
+### Confidence Levels (Score 0-100)
+- **HIGH (80-100)** - Strong setup, 3+ conditions aligned
+- **MEDIUM (60-80)** - Valid setup, 2 conditions aligned
+- **LOW (40-60)** - Marginal edge
+- **VERY LOW (<40)** - Skip this trade
 
 ---
 
 ## 📈 Indicators Implemented
 
 ### 1. **RSI (Relative Strength Index)**
-- ✅ Detects overbought (>70) and oversold (<30) conditions
-- ✅ Identifies divergences (price vs RSI)
-- ✅ Generates reversal signals on crosses
+- Period: 14 (configurable)
+- Overbought: >70, Oversold: <30
+- Identifies reversal conditions
 
-**Your Rules:**
-- Long when RSI < 30 → crosses up
-- Short when RSI > 70 → crosses down
+**Trading Rules:**
+- Long: RSI < 30 crosses up (oversold recovery)
+- Short: RSI > 70 crosses down (overbought exhaustion)
 
 ### 2. **EMA (Exponential Moving Averages)**
-- ✅ 20/50/200 EMA calculations
-- ✅ Trend detection (50>200 = bullish, 50<200 = bearish)
-- ✅ Pullback/rally entries at 20 EMA
-- ✅ Golden/Death cross detection
+- 20, 50, 200-period EMAs
+- Trend structure detection
+- Pullback entry identification
 
-**Your Rules:**
-- Long: 50>200 trend + pullback to 20 EMA
-- Short: 50<200 trend + rally to 20 EMA
+**Trading Rules:**
+- Long: EMA50 > EMA200 (bullish) + pullback to EMA20
+- Short: EMA50 < EMA200 (bearish) + rally to EMA20
 
-### 3. **MACD (Moving Average Convergence Divergence)**
-- ✅ MACD line, signal line, histogram
-- ✅ Crossover detection
-- ✅ Momentum strength analysis
-- ✅ Stronger signals near zero line
+### 3. **MACD**
+- Fast: 12, Slow: 26, Signal: 9
+- Crossover detection
+- Momentum confirmation
 
-**Your Rules:**
-- Long: MACD crosses above signal + price above 20 EMA
-- Short: MACD crosses below signal + price below 20 EMA
+**Trading Rules:**
+- Long: MACD crosses above signal line
+- Short: MACD crosses below signal line
 
 ### 4. **Volume Analysis**
-- ✅ Volume spike detection (1.5x average)
-- ✅ Breakout confirmation
-- ✅ Exhaustion pattern detection
+- 20-period SMA baseline
+- Spike threshold: 1.5x average
+- Confirms conviction on moves
 
-**Your Rules:**
+**Trading Rules:**
 - High volume breakout = real move (trade it)
 - Low volume breakout = weak move (skip it)
 
 ### 5. **ATR (Average True Range)**
-- ✅ Volatility measurement
-- ✅ Stop-loss calculation (1.5-2x ATR)
-- ✅ Take-profit calculation (2-3x ATR)
-- ✅ Tradeable market detection
+- Period: 14
+- Used for stop-loss and take-profit levels
+- Volatility regime detection
 
-**Your Rules:**
-- Don't trade if ATR < average (too quiet)
-- Use ATR for stop-loss and take-profit levels
+**Trading Rules:**
+- Stop-loss: 1.5-2x ATR below/above entry
+- Take-profit: 2-3x ATR for 1:1.5+ R:R
 
 ### 6. **Bollinger Bands**
-- ✅ Upper/middle/lower band calculation
-- ✅ Overbought/oversold detection
-- ✅ Squeeze detection (imminent breakout)
-- ✅ Mean reversion signals
+- Period: 20, StdDev: 2.0
+- Mean reversion signals
+- Squeeze detection
 
-**Your Rules:**
-- Long: Price below lower band → reversal
-- Short: Price above upper band → reversal
-- Squeeze: Narrow bands → wait for breakout
+**Trading Rules:**
+- Long: Price touches/breaks lower band
+- Short: Price touches/breaks upper band
+- Squeeze: Narrow bands signal imminent breakout
+
+---
+
+## 🎛️ Regime Detection
+
+The app uses regime filters to avoid low-probability environments:
+
+### Trend Regime
+Based on price relative to EMA200:
+- **UPTREND**: Price > EMA200 (favor longs)
+- **DOWNTREND**: Price < EMA200 (favor shorts)
+- **NEUTRAL**: Price near EMA200
+
+### Volatility Regime
+Based on ATR percentile (14-period ATR vs 100-period lookback):
+- **PANIC** (>80th percentile): High volatility, wider stops
+- **NORMAL** (20-80th): Standard conditions
+- **DEAD** (<20th percentile): Low volatility, skip trades
 
 ---
 
 ## 🔥 High-Probability Setups
 
-The app looks for these **exact combinations** you specified:
+### Mean Reversion Long
+```
+✅ EMA50 > EMA200 (bullish structure)
+✅ RSI bounces from <35 (oversold)
+✅ Price at/below lower Bollinger Band
+✅ Volume above average (confirmation)
+✅ Vol regime: NORMAL (not DEAD)
+→ STRONG LONG SIGNAL (score 80+)
+```
 
-### Long Setup Example:
+### Mean Reversion Short
 ```
-✅ 50>200 EMA (bullish trend)
-✅ RSI bounces from 35→50 (oversold recovery)
-✅ MACD flips positive (momentum shift)
-✅ Volume picks up (1.6x avg)
-→ STRONG LONG SIGNAL
-```
-
-### Short Setup Example:
-```
-✅ 50<200 EMA (bearish trend)
-✅ RSI falls 70→50 (overbought exhaustion)
-✅ MACD flips negative (momentum shift)
-✅ Volume spike (2.0x avg)
-→ STRONG SHORT SIGNAL
+✅ EMA50 < EMA200 (bearish structure)
+✅ RSI falls from >65 (overbought)
+✅ Price at/above upper Bollinger Band
+✅ Volume above average (confirmation)
+✅ Vol regime: NORMAL (not PANIC)
+→ STRONG SHORT SIGNAL (score 80+)
 ```
 
 ---
 
-## 🎮 How to Use
+## 🎮 Usage Examples
 
-### Basic Analysis:
+### Single Stock Analysis
 ```bash
-python main.py --symbol BTC/USDT --timeframe 1h
+# Analyze Apple on 1-hour chart
+python main.py --symbol AAPL --timeframe 1h
+
+# Analyze Tesla on 4-hour chart
+python main.py --symbol TSLA --timeframe 4h
+
+# Analyze Microsoft on daily chart
+python main.py --symbol MSFT --timeframe 1d
 ```
 
-### Live Monitoring:
+### Multi-Stock Monitoring
 ```bash
-python main.py --symbol BTC/USDT --timeframe 1h --live
-```
-
-### Different Timeframes:
-```bash
-# 15-minute chart
-python main.py --symbol ETH/USDT --timeframe 15m
-
-# 4-hour chart
-python main.py --symbol BTC/USDT --timeframe 4h
-
-# Daily chart
-python main.py --symbol BTC/USDT --timeframe 1d
+# Monitor universe of stocks
+python run_live_stocks.py --universe data/universe.csv --timeframe 1h --interval 60
 ```
 
 ---
@@ -139,104 +150,137 @@ python main.py --symbol BTC/USDT --timeframe 1d
 
 ```
 ======================================================================
-  📊 TRADING STRATEGY ANALYZER
+  📊 TRADING STRATEGY ANALYZER - AAPL
 ======================================================================
 
-🎯 SIGNAL: LONG (HIGH confidence)
-   Strength: 0.78
-   Reason: Long setup: 3 conditions met
+🎯 SIGNAL: LONG
+   Score: 82/100 (HIGH confidence)
+   Reason: Mean reversion long - oversold bounce + trend support
 
 ✅ Conditions Met:
-   1. RSI oversold bounce (32.5 crossing above 30)
-   2. Bullish trend + pullback to 20 EMA (trend support)
-   3. MACD bullish crossover + price above 20 EMA
-   4. High volume (1.8x avg) - Strong confirmation
+   1. RSI oversold bounce (28.5 → 34)
+   2. Bullish trend (EMA50 > EMA200)
+   3. Price at lower Bollinger Band
+   4. Volume spike (1.6x average)
 
 📊 Trade Levels:
-   Entry: $42,350.00
-   Stop Loss: $41,875.00 (1.5x ATR)
-   Take Profit: $43,537.50 (2.5x ATR)
-   Risk/Reward: 1:2.50
+   Entry: $185.50
+   Stop Loss: $183.25 (1.5x ATR)
+   Take Profit: $189.88 (2.5x ATR)
+   Risk/Reward: 1:1.95
 
-⚡ Risk Assessment: TRADE
-
-📈 Market Context:
-   Trend: BULLISH (50 EMA > 200 EMA)
-   RSI: Oversold bounce (strength returning)
-   MACD: Bullish momentum building
-   Volume: High volume confirmation
-   Volatility: Normal (ATR at 98% of average)
+🌡️ Regime Context:
+   Trend: UPTREND
+   Volatility: NORMAL (ATR 42nd percentile)
+   News Risk: LOW
 ======================================================================
 ```
 
 ---
 
-## ⚙️ Customization
+## 📰 News Risk Assessment
 
-Edit `config.yaml` to adjust:
-- RSI overbought/oversold levels
-- EMA periods (20/50/200)
-- MACD parameters
-- Volume spike threshold
-- ATR multipliers for stops/targets
-- Minimum conditions required for signal
+The app checks recent Polygon.io news for risk events:
+
+### Risk Levels
+- **HIGH**: Earnings, SEC filings, lawsuits, FDA decisions
+- **MEDIUM**: Analyst upgrades/downgrades, M&A rumors
+- **LOW**: No significant news
+
+### How It Works
+1. Fetches news from past 24-48 hours via Polygon.io
+2. Scans headlines for HIGH/MEDIUM risk keywords
+3. Attaches risk label to signal output
+4. Warns before binary event risk
 
 ---
 
-## 🧪 Testing
+## ⚙️ Configuration
 
-Run unit tests:
-```bash
-python -m pytest tests/ -v
+Edit `config.yaml` to customize:
+
+```yaml
+indicators:
+  rsi:
+    period: 14
+    overbought: 70
+    oversold: 30
+  
+  ema:
+    periods: [20, 50, 200]
+  
+  atr:
+    period: 14
+    stop_multiplier: 1.5
+    target_multiplier: 2.5
+
+strategy:
+  min_score: 60          # Minimum score to generate signal
+  min_conditions: 2      # Minimum conditions for valid setup
 ```
 
 ---
 
-## 🚀 Features
+## 📈 Outcome Evaluation
 
-- ✅ **Real-time data** from 100+ exchanges (via CCXT)
-- ✅ **Multi-timeframe** analysis (15m, 1h, 4h, 1d)
-- ✅ **Risk management** (ATR-based stops and targets)
-- ✅ **Signal strength** scoring (0-1)
-- ✅ **Confidence levels** (HIGH/MEDIUM/LOW)
-- ✅ **Color-coded output** (green=long, red=short, yellow=neutral)
-- ✅ **Live monitoring** mode
-- ✅ **Data export** to CSV
+After running the app and collecting alerts, evaluate performance:
+
+```bash
+# Evaluate outcomes for logged alerts
+python -m src.evaluation.outcome_logger --db-path alerts_log.db --lookback-hours 168
+
+# Generate performance reports
+python -m src.evaluation.reporting --db-path alerts_log.db
+```
+
+### Metrics Tracked
+- **MFE (Max Favorable Excursion)**: Best unrealized P&L
+- **MAE (Max Adverse Excursion)**: Worst unrealized drawdown
+- **Hit Rate**: % of signals that reached target
+- **Win/Loss Ratio**: Average win size vs average loss
 
 ---
 
 ## 💡 Strategy Philosophy
 
-> "If you combine 2-3 of these conditions at once, you'll catch 80% of high-quality trades."
+> "Combine 2-3 conditions at once to catch 80% of high-quality trades."
 
-This app ensures you **never miss** a high-probability setup by:
+The app ensures you never miss a setup by:
 1. Monitoring all indicators simultaneously
 2. Identifying when 2+ conditions align
-3. Confirming with volume and volatility
+3. Filtering with regime awareness
 4. Calculating optimal entry/exit levels
-5. Filtering out low-quality setups
+5. Assessing news risk before signals
 
 ---
 
-## 📚 Next Steps
+## 🛡️ Risk Management
 
-1. **Test the app**: Run it on historical data
-2. **Customize config**: Adjust parameters to your preference
-3. **Paper trade**: Use signals to practice without risk
-4. **Live monitor**: Set up on your trading timeframe
-5. **Backtest**: Analyze past performance (future feature)
+### Position Sizing (Recommended)
+- Risk 1-2% of account per trade
+- Use ATR-based stops (1.5-2x ATR)
+- Minimum 1:1.5 reward-to-risk ratio
+
+### Environment Filters
+- Skip DEAD volatility regime (no edge)
+- Reduce size in PANIC regime
+- Check news risk before earnings
 
 ---
 
-## 🛡️ Risk Disclaimer
+## 📚 Related Documentation
+
+- [GET_STARTED.md](GET_STARTED.md) - Quick start guide
+- [QUICK_REFERENCE.md](QUICK_REFERENCE.md) - Command cheat sheet
+- [EXAMPLES.md](EXAMPLES.md) - Usage examples
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - Code organization
+
+---
+
+## 🛡️ Disclaimer
 
 This is an **analysis tool** for educational purposes. Always:
-- Practice proper risk management
-- Never risk more than 1-2% per trade
 - Verify signals manually before trading
-- Test thoroughly before live trading
+- Practice proper risk management
+- Test thoroughly in paper trading first
 - Past performance doesn't guarantee future results
-
----
-
-**Built with your exact strategy rules. No guessing. No black boxes. Just pure technical analysis.** ✨
