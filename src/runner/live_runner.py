@@ -6,6 +6,7 @@ Universe CSV -> Scheduler loop -> Fetch market data -> Compute strategy ->
 
 v3: News is now fetched ONLY after a setup triggers, using Polygon.io News API.
 v4: Cache-backed OHLCV fetching with metrics for performance optimization.
+v5: V2 engine mode with gate logic (shadow / v2 modes).
 """
 
 from __future__ import annotations
@@ -13,9 +14,11 @@ from __future__ import annotations
 import os
 import time
 import logging
+import yaml
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Iterable, List, Optional
+from pathlib import Path
+from typing import Iterable, List, Optional, Dict, Any
 
 from ..marketdata import (
     fetch_stock_ohlcv,
@@ -39,7 +42,17 @@ from ..news import (
 from ..state import SqliteStateStore
 from ..strategy.engine import StrategyEngine, EvaluationStatus
 from ..strategy.mean_reversion import SetupStatus
+from ..strategy.regimes import detect_chop_regime
 from ..notify import MultiNotifier, TelegramNotifier, EmailNotifier
+from ..v2 import (
+    GateStatus,
+    ScrutinyLevel,
+    GateResult,
+    GateFeatures,
+    GateConfig,
+    evaluate_gate,
+    compute_gate_features,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,6 +72,54 @@ class LiveRunConfig:
     max_workers: int = 32  # Concurrent fetch threads
     check_market_status: bool = True  # Check if market is open before scanning
     allow_extended_hours: bool = True  # Allow scanning during pre/post market
+    engine_mode: Optional[str] = None  # Engine mode: v1, v2, or shadow (None=use config.yaml)
+    max_concurrent_trades: int = 3  # Maximum concurrent open positions (risk governor)
+
+
+def _get_engine_config() -> Dict[str, Any]:
+    """Load engine configuration from config.yaml."""
+    config_path = Path(__file__).parent.parent.parent / "config.yaml"
+    
+    defaults = {
+        "mode": "v2",
+        "v2_gate": {
+            "min_price": 5.0,
+            "min_avg_dollar_volume_20d": 20_000_000,
+            # Score filters
+            "min_score": 70,
+            "downtrend_min_score": 80,
+            # Volatility filters
+            "max_atr_pct": 5.0,
+            "block_downtrend_high_vol": True,
+            # Regime allowances
+            "allow_weak_downtrend": True,
+            # Event risk
+            "strict_earnings_block": False,
+            "block_high_news_risk": False,
+        },
+        "calibration_logging": {
+            "enabled": False,
+            "hold_hours_by_timeframe": {"1h": 24, "4h": 72, "1d": 168},
+        }
+    }
+    
+    if not config_path.exists():
+        return defaults
+    
+    try:
+        with open(config_path) as f:
+            config = yaml.safe_load(f)
+        
+        result = {
+            "mode": config.get("engine", {}).get("mode", "v2"),
+            "strategy": config.get("engine", {}).get("strategy", "multi_strategy"),
+            "v2_gate": {**defaults["v2_gate"], **config.get("v2_gate", {})},
+            "calibration_logging": {**defaults["calibration_logging"], **config.get("calibration_logging", {})},
+        }
+        return result
+    except Exception as e:
+        logger.warning(f"Failed to load engine config: {e}, using defaults")
+        return defaults
 
 
 def _get_min_bars_for_timeframe(timeframe: str) -> int:
@@ -125,11 +186,105 @@ def _fetch_news_risk(ticker: str, timeframe: str, lookback_hours: Optional[int] 
         return create_unknown_risk_result(f"news_fetch_error: {str(e)[:50]}")
 
 
+def _compute_chop_regime(analysis: dict) -> Optional[str]:
+    """
+    Compute chop regime from analysis data.
+    
+    Uses Bollinger Band bandwidth to determine if market is in chop.
+    Returns "CHOP" or "TRENDING" (or None if insufficient data).
+    """
+    try:
+        bb_data = analysis.get('bb', {})
+        bb_upper = bb_data.get('upper_series')
+        bb_lower = bb_data.get('lower_series')
+        bb_middle = bb_data.get('middle_series')
+        
+        if bb_upper is None or bb_lower is None or bb_middle is None:
+            return None
+        
+        result = detect_chop_regime(
+            bb_upper=bb_upper,
+            bb_lower=bb_lower,
+            bb_middle=bb_middle,
+        )
+        
+        return result.regime.value if result else None
+    except Exception as e:
+        logger.debug(f"Chop regime detection error: {e}")
+        return None
+
+
+def _evaluate_v2_gate(
+    symbol: str,
+    df,
+    analysis: dict,
+    alert,
+    gate_config: GateConfig,
+    news_risk: Optional[NewsRiskResult] = None,
+) -> GateResult:
+    """
+    Evaluate V2 gate for a triggered setup.
+    
+    Args:
+        symbol: Stock ticker
+        df: OHLCV DataFrame
+        analysis: Analysis results from strategy engine
+        alert: SetupAlert with setup details
+        gate_config: GateConfig with thresholds
+        news_risk: Optional news risk result
+    
+    Returns:
+        GateResult with gate decision
+    """
+    try:
+        # Get regime data from the alert (not analysis dict)
+        vol_regime = alert.vol_regime if hasattr(alert, 'vol_regime') else None
+        trend_regime = alert.trend_regime if hasattr(alert, 'trend_regime') else None
+        
+        # Compute chop regime from BB data
+        chop_regime = _compute_chop_regime(analysis)
+        
+        # Extract score and atr_pct from alert for new gate filters
+        score = alert.score if hasattr(alert, 'score') else None
+        atr_pct = alert.atr_pct if hasattr(alert, 'atr_pct') else None
+        
+        # Compute gate features
+        features = compute_gate_features(
+            df=df,
+            trend_regime=trend_regime,
+            vol_regime=vol_regime,
+            chop_regime=chop_regime,
+            news_risk=news_risk.risk_level if news_risk else None,
+        )
+        
+        # Add score and atr_pct for new refinement filters
+        features.score = score
+        features.atr_pct = atr_pct
+        
+        # Evaluate gate
+        return evaluate_gate(
+            symbol=symbol,
+            timeframe=alert.timeframe if hasattr(alert, 'timeframe') else '',
+            setup_name=alert.setup,
+            direction=alert.direction,
+            features=features,
+            gate_config=gate_config,
+        )
+    except Exception as e:
+        logger.error(f"Gate evaluation error for {symbol}: {e}")
+        return GateResult(
+            status=GateStatus.NOT_EVALUATED,
+            reasons=[f"GATE_ERROR: {str(e)[:100]}"],
+        )
+
+
 def _format_alert_message(
     ticker: str,
     analysis: dict,
     news_risk: NewsRiskResult,
     timeframe: str,
+    alert_log_id: int | None = None,
+    company_name: str | None = None,
 ) -> tuple[str, str]:
     """
     Format alert title and message.
@@ -141,17 +296,26 @@ def _format_alert_message(
     alert = setup_result.alert if setup_result else None
     
     if alert:
-        title = f"🔔 {alert.direction} {ticker} | Score: {alert.score} | {alert.setup}"
+        # Build title with optional company name
+        ticker_display = f"{ticker} ({company_name})" if company_name else ticker
+        title = f"🔔 {alert.direction} ALERT: {ticker_display} | Score: {alert.score} | {alert.setup}"
         
-        parts = [
+        parts = []
+        
+        # Add Alert Log ID at the top if available
+        if alert_log_id:
+            parts.append(f"🆔 Alert ID: {alert_log_id}")
+            parts.append("")
+        
+        parts.extend([
             f"⏱️  Timeframe: {timeframe}",
             f"💰 Trigger Price: ${alert.trigger_close:.2f}",
             f"📍 Entry Zone: ${alert.entry_zone[0]:.2f} - ${alert.entry_zone[1]:.2f}",
-            f"🛑 Invalidation: ${alert.invalidation:.2f}",
+            f"🛑 StopLoss: ${alert.invalidation:.2f}",
             f"⏳ Hold Window: {alert.hold_window}",
             "",
             "📊 Evidence:",
-        ]
+        ])
         for ev in alert.evidence[:5]:  # Max 5 evidence bullets
             parts.append(f"  • {ev}")
         
@@ -321,8 +485,19 @@ def run_live_universe_v2(
         if current:
             current.record_ticker_scanned()
 
-        # Run v2 analysis (mean reversion)
-        analysis = engine.analyze_with_mean_reversion(df, interval=config.timeframe)
+        # Run analysis based on engine strategy mode
+        engine_config = _get_engine_config()
+        strategy_mode = engine_config.get("strategy", "vol_squeeze_only")
+        
+        if strategy_mode == "vol_squeeze_only":
+            # Volatility Squeeze ONLY (no ensemble fallback)
+            analysis = engine.analyze_with_vol_squeeze_only(df, interval=config.timeframe)
+        elif strategy_mode == "multi_strategy":
+            # Multi-strategy: Volatility Squeeze primary + Ensemble secondary
+            analysis = engine.analyze_with_multi_strategy(df, interval=config.timeframe)
+        else:
+            # Legacy: Mean reversion only
+            analysis = engine.analyze_with_mean_reversion(df, interval=config.timeframe)
         
         # Check evaluation status
         if analysis['status'] == EvaluationStatus.NOT_EVALUATED:
@@ -370,8 +545,134 @@ def run_live_universe_v2(
         alert.news_risk = news_risk.risk_level
         alert.news_reasons = news_risk.reasons
         
-        # Format message
-        title, message = _format_alert_message(ticker, analysis, news_risk, config.timeframe)
+        # ============ V2 Engine Mode Gate ============
+        # Get engine config
+        engine_config = _get_engine_config()
+        engine_mode = config.engine_mode or engine_config.get("mode", "v2")
+        
+        # Build GateConfig from config.yaml (V2.1 with toxic regime blocking)
+        v2_gate_cfg = engine_config.get("v2_gate", {})
+        gate_config = GateConfig(
+            # Hard filters
+            min_price=v2_gate_cfg.get("min_price", 5.0),
+            min_avg_dollar_volume_20d=v2_gate_cfg.get("min_avg_dollar_volume_20d", 20_000_000),
+            # Score filters
+            min_score=v2_gate_cfg.get("min_score", 70),
+            downtrend_min_score=v2_gate_cfg.get("downtrend_min_score", 80),
+            # Volatility filters
+            max_atr_pct=v2_gate_cfg.get("max_atr_pct", 5.0),
+            block_downtrend_high_vol=v2_gate_cfg.get("block_downtrend_high_vol", True),
+            # Regime allowances
+            allow_weak_downtrend=v2_gate_cfg.get("allow_weak_downtrend", True),
+            # Event risk
+            strict_earnings_block=v2_gate_cfg.get("strict_earnings_block", False),
+            block_high_news_risk=v2_gate_cfg.get("block_high_news_risk", False),
+        )
+        
+        # Gate evaluation variables
+        gate_result: Optional[GateResult] = None
+        gate_decision_id: Optional[int] = None
+        should_send_alert = True  # Default: send alert (v1 behavior)
+        
+        # Only evaluate gate in shadow or v2 mode
+        if engine_mode in ("shadow", "v2"):
+            gate_result = _evaluate_v2_gate(
+                symbol=ticker,
+                df=df,
+                analysis=analysis,
+                alert=alert,
+                gate_config=gate_config,
+                news_risk=news_risk,
+            )
+            
+            if verbose:
+                status_emoji = "✅" if gate_result.status == GateStatus.GO else "❌" if gate_result.status == GateStatus.NO_GO else "⚠️"
+                scrutiny_str = f" ({gate_result.scrutiny_level.value})" if gate_result.status == GateStatus.GO else ""
+                print(f"[{ticker}] 🚦 Gate: {status_emoji} {gate_result.status.value}{scrutiny_str} - {', '.join(gate_result.reasons)}")
+            
+            # Log gate decision to database
+            try:
+                gate_decision_id = state.log_gate_decision(
+                    symbol=ticker,
+                    timeframe=config.timeframe,
+                    setup=alert.setup,
+                    direction=alert.direction,
+                    gate_status=gate_result.status.value,
+                    gate_reasons=gate_result.reasons,
+                    scrutiny_level=gate_result.scrutiny_level.value,
+                    gate_tags=gate_result.tags,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log gate decision: {e}")
+            
+            # Determine if we should send alert
+            if engine_mode == "v2":
+                # V2 mode: gate enforced - only send if GO
+                should_send_alert = (gate_result.status == GateStatus.GO)
+                if not should_send_alert and verbose:
+                    print(f"[{ticker}] 🚫 Alert suppressed by V2 gate")
+            # shadow mode: always send alert (gate is logged but not enforced)
+        
+        # ============ End V2 Engine Mode Gate ============
+        
+        # Skip if gate blocked (v2 mode only)
+        if not should_send_alert:
+            continue
+        
+        # ============ Position Limit Check (Risk Governor) ============
+        # Check if we're at max concurrent positions
+        calibration_logging = engine_config.get("calibration_logging", {})
+        hold_hours_by_timeframe = calibration_logging.get("hold_hours_by_timeframe", {"1h": 24, "4h": 48})
+        
+        try:
+            active_trades = state.count_active_trades(hold_hours_by_timeframe=hold_hours_by_timeframe)
+            if active_trades >= config.max_concurrent_trades:
+                if verbose:
+                    print(f"[{ticker}] 🛑 Position limit reached: {active_trades}/{config.max_concurrent_trades} active trades")
+                current = get_current_metrics()
+                if current:
+                    current.record_not_evaluated("MAX_POSITION_LIMIT")
+                continue
+        except Exception as e:
+            logger.warning(f"Failed to check position limit: {e}, proceeding with alert")
+        
+        # ============ End Position Limit Check ============
+        
+        # Log alert FIRST to get the alert_log_id for the message
+        alert_log_id = None
+        calibration_logging = engine_config.get("calibration_logging", {})
+        if calibration_logging.get("enabled", False):
+            try:
+                alert_log_id = state.log_alert_for_calibration(
+                    symbol=ticker,
+                    timeframe=config.timeframe,
+                    setup=alert.setup,
+                    direction=alert.direction,
+                    score=alert.score,
+                    trigger_close=alert.trigger_close,
+                    rsi=alert.rsi,
+                    rsi_prev=alert.rsi_prev,
+                    atr=alert.atr,
+                    atr_pct=alert.atr_pct,
+                    ema200=alert.ema200,
+                    ema200_slope=alert.ema200_slope,
+                    trend_regime=alert.trend_regime,
+                    vol_regime=alert.vol_regime,
+                    bb_lower=alert.bb_lower,
+                    bb_middle=alert.bb_middle,
+                    bb_upper=alert.bb_upper,
+                    entry_zone_low=alert.entry_zone[0],
+                    entry_zone_high=alert.entry_zone[1],
+                    invalidation=alert.invalidation,
+                    news_risk=news_risk.risk_level,
+                    news_reasons=news_risk.reasons,
+                    alert_payload=alert.to_dict(),
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log alert for calibration: {e}")
+        
+        # Format message (now includes alert_log_id if available)
+        title, message = _format_alert_message(ticker, analysis, news_risk, config.timeframe, alert_log_id, name)
         
         # Print to console
         if verbose:
@@ -395,22 +696,22 @@ def run_live_universe_v2(
         if current:
             current.record_alert_sent()
         
-        # Log for calibration if enabled
-        try:
-            state.log_alert_for_calibration(
-                ticker=ticker,
-                timeframe=config.timeframe,
-                setup_name=alert.setup,
-                direction=alert.direction,
-                score=alert.score,
-                trigger_price=alert.trigger_close,
-                invalidation=alert.invalidation,
-                evidence=alert.evidence,
-                news_risk=news_risk.risk_level,
-                news_reasons=news_risk.reasons,
-            )
-        except Exception as e:
-            logger.warning(f"Failed to log alert for calibration: {e}")
+        # If in v2 mode and gate passed, log v2 alert
+        if alert_log_id and engine_mode == "v2" and gate_result and gate_result.status == GateStatus.GO:
+            try:
+                state.log_v2_alert(
+                    symbol=ticker,
+                    timeframe=config.timeframe,
+                    setup=alert.setup,
+                    direction=alert.direction,
+                    score=alert.score,
+                    trigger_close=alert.trigger_close,
+                    scrutiny_level=gate_result.scrutiny_level.value,
+                    gate_decision_id=gate_decision_id or 0,
+                    alert_log_id=alert_log_id,
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log v2 alert: {e}")
     
     # Finish scan metrics and log summary
     final_metrics = finish_scan_metrics()

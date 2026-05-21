@@ -1,7 +1,7 @@
 services:
   trader:
     build: .
-    container_name: trade-bot
+    container_name: trade-bot-v2
     restart: unless-stopped
     volumes:
       # Persist the state database

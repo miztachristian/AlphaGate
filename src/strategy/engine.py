@@ -40,6 +40,8 @@ from .regimes import (
 from .mean_reversion import (
     evaluate_mean_reversion_setup, SetupStatus, SetupResult, MeanReversionAlert
 )
+from .vol_squeeze import evaluate_volatility_squeeze_setup
+from .ensemble import evaluate_multi_strategy_ensemble
 
 
 class EvaluationStatus:
@@ -334,6 +336,220 @@ class StrategyEngine:
         }
         
         return result
+    
+    def analyze_with_multi_strategy(
+        self, 
+        df: pd.DataFrame, 
+        interval: str = "1h"
+    ) -> Dict:
+        """
+        Multi-strategy analysis entry point.
+        
+        Priority order:
+        1. PRIMARY: Volatility Squeeze (Strategy 3) — best backtested edge
+        2. SECONDARY: Multi-Strategy Ensemble (Strategy 4) — regime-routed fallback
+        
+        If the primary triggers, we use it. Otherwise, fall back to the ensemble.
+        
+        Returns same dict structure as analyze_with_mean_reversion for compatibility
+        with the live runner pipeline.
+        """
+        result = {
+            'status': EvaluationStatus.NOT_EVALUATED,
+            'reason': None,
+            'setup_result': None,
+            'data_quality': None,
+            'indicators': None,
+            'timestamp': None,
+            'price': None,
+        }
+        
+        # Step 1: Validate data quality
+        dq_result = self.validate_data(df, interval)
+        result['data_quality'] = {
+            'status': dq_result.status.value,
+            'reason': dq_result.reason,
+            'warnings': dq_result.warnings,
+        }
+        
+        if not dq_result.is_ok:
+            result['reason'] = f"Data quality: {dq_result.reason}"
+            return result
+        
+        cleaned_df = dq_result.df
+        
+        # Step 2: Calculate indicators
+        indicators = self.calculate_all_indicators(cleaned_df)
+        
+        # Step 3: Check warmup
+        warmed_up, warmup_reason = self.check_indicator_warmup(indicators)
+        if not warmed_up:
+            result['reason'] = f"Warmup: {warmup_reason}"
+            return result
+        
+        # Step 4: PRIMARY — Volatility Squeeze
+        primary_result = None
+        try:
+            primary_result = evaluate_volatility_squeeze_setup(
+                df=cleaned_df,
+                rsi=indicators['rsi_values'],
+                atr=indicators['atr'],
+                ema20=indicators['ema_20'],
+                ema50=indicators['ema_50'],
+                ema200=indicators['ema_200'],
+                bb_lower=indicators['bb_lower'],
+                bb_middle=indicators['bb_middle'],
+                bb_upper=indicators['bb_upper'],
+                volume_sma=indicators['volume_sma'],
+                timeframe=interval,
+            )
+        except Exception:
+            pass
+        
+        if primary_result and primary_result.status == SetupStatus.SETUP_TRIGGERED:
+            result['status'] = EvaluationStatus.EVALUATED
+            result['setup_result'] = primary_result
+            result['timestamp'] = cleaned_df.index[-1]
+            result['price'] = float(cleaned_df['close'].iloc[-1])
+            result['indicators'] = self._extract_indicator_snapshot(indicators)
+            return result
+        
+        # Step 5: SECONDARY — Multi-Strategy Ensemble
+        secondary_results = None
+        try:
+            secondary_results = evaluate_multi_strategy_ensemble(
+                df=cleaned_df,
+                indicators=indicators,
+                timeframe=interval,
+            )
+        except Exception:
+            pass
+        
+        best_setup = None
+        if secondary_results:
+            for sr in secondary_results:
+                if sr.status == SetupStatus.SETUP_TRIGGERED:
+                    # Pick highest score
+                    if best_setup is None or (sr.alert and sr.alert.score > best_setup.alert.score):
+                        best_setup = sr
+        
+        if best_setup:
+            result['status'] = EvaluationStatus.EVALUATED
+            result['setup_result'] = best_setup
+            result['timestamp'] = cleaned_df.index[-1]
+            result['price'] = float(cleaned_df['close'].iloc[-1])
+            result['indicators'] = self._extract_indicator_snapshot(indicators)
+            return result
+        
+        # Step 6: No setup triggered
+        result['status'] = EvaluationStatus.EVALUATED
+        no_setup_reason = "No setup triggered (Squeeze primary + Ensemble secondary)"
+        if primary_result and primary_result.reason:
+            no_setup_reason = f"Primary: {primary_result.reason}"
+        result['setup_result'] = SetupResult(
+            status=SetupStatus.EVALUATED_NO_SETUP,
+            reason=no_setup_reason,
+        )
+        result['timestamp'] = cleaned_df.index[-1]
+        result['price'] = float(cleaned_df['close'].iloc[-1])
+        result['indicators'] = self._extract_indicator_snapshot(indicators)
+        return result
+    
+    def analyze_with_vol_squeeze_only(
+        self, 
+        df: pd.DataFrame, 
+        interval: str = "1h"
+    ) -> Dict:
+        """
+        Volatility Squeeze ONLY analysis.
+        
+        Only fires alerts for VOLATILITY_SQUEEZE_BREAKOUT setups — the highest
+        edge strategy (74.7% WR, Sharpe 2.42, PF 1.77 on 1H backtest).
+        No ensemble fallback = fewer, higher-quality alerts.
+        """
+        result = {
+            'status': EvaluationStatus.NOT_EVALUATED,
+            'reason': None,
+            'setup_result': None,
+            'data_quality': None,
+            'indicators': None,
+            'timestamp': None,
+            'price': None,
+        }
+        
+        # Step 1: Validate data quality
+        dq_result = self.validate_data(df, interval)
+        result['data_quality'] = {
+            'status': dq_result.status.value,
+            'reason': dq_result.reason,
+            'warnings': dq_result.warnings,
+        }
+        
+        if not dq_result.is_ok:
+            result['reason'] = f"Data quality: {dq_result.reason}"
+            return result
+        
+        cleaned_df = dq_result.df
+        
+        # Step 2: Calculate indicators
+        indicators = self.calculate_all_indicators(cleaned_df)
+        
+        # Step 3: Check warmup
+        warmed_up, warmup_reason = self.check_indicator_warmup(indicators)
+        if not warmed_up:
+            result['reason'] = f"Warmup: {warmup_reason}"
+            return result
+        
+        # Step 4: Volatility Squeeze evaluation (ONLY strategy)
+        squeeze_result = None
+        try:
+            squeeze_result = evaluate_volatility_squeeze_setup(
+                df=cleaned_df,
+                rsi=indicators['rsi_values'],
+                atr=indicators['atr'],
+                ema20=indicators['ema_20'],
+                ema50=indicators['ema_50'],
+                ema200=indicators['ema_200'],
+                bb_lower=indicators['bb_lower'],
+                bb_middle=indicators['bb_middle'],
+                bb_upper=indicators['bb_upper'],
+                volume_sma=indicators['volume_sma'],
+                timeframe=interval,
+            )
+        except Exception:
+            pass
+        
+        if squeeze_result and squeeze_result.status == SetupStatus.SETUP_TRIGGERED:
+            result['status'] = EvaluationStatus.EVALUATED
+            result['setup_result'] = squeeze_result
+            result['timestamp'] = cleaned_df.index[-1]
+            result['price'] = float(cleaned_df['close'].iloc[-1])
+            result['indicators'] = self._extract_indicator_snapshot(indicators)
+            return result
+        
+        # No squeeze setup → no alert (no fallback)
+        result['status'] = EvaluationStatus.EVALUATED
+        reason = squeeze_result.reason if squeeze_result and squeeze_result.reason else "No Volatility Squeeze setup"
+        result['setup_result'] = SetupResult(
+            status=SetupStatus.EVALUATED_NO_SETUP,
+            reason=reason,
+        )
+        result['timestamp'] = cleaned_df.index[-1]
+        result['price'] = float(cleaned_df['close'].iloc[-1])
+        result['indicators'] = self._extract_indicator_snapshot(indicators)
+        return result
+    
+    def _extract_indicator_snapshot(self, indicators: Dict) -> Dict:
+        """Extract the latest indicator values for logging."""
+        return {
+            'rsi': float(indicators['rsi_values'].iloc[-1]),
+            'atr': float(indicators['atr'].iloc[-1]),
+            'atr_pct': float(indicators['atr_pct'].iloc[-1]),
+            'ema200': float(indicators['ema_200'].iloc[-1]),
+            'bb_lower': float(indicators['bb_lower'].iloc[-1]),
+            'bb_middle': float(indicators['bb_middle'].iloc[-1]),
+            'bb_upper': float(indicators['bb_upper'].iloc[-1]),
+        }
     
     def analyze_current_market(self, df: pd.DataFrame) -> Dict:
         """

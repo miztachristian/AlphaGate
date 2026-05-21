@@ -4,6 +4,7 @@ Regime Detection Module
 Detects market regimes for filtering trading setups:
 - Volatility regime (ATR%): PANIC, NORMAL, DEAD
 - Trend regime (EMA200): STRONG_DOWNTREND, DOWNTREND, NEUTRAL, UPTREND, STRONG_UPTREND
+- Chop regime (BB bandwidth): CHOP, TRENDING
 """
 
 from __future__ import annotations
@@ -32,6 +33,12 @@ class TrendRegime(Enum):
     NEUTRAL = "NEUTRAL"                     # Slope flat, price near EMA200
     UPTREND = "UPTREND"                     # Slope up OR price above EMA200
     STRONG_UPTREND = "STRONG_UPTREND"       # Slope up AND price > 1 ATR above EMA200
+
+
+class ChopRegime(Enum):
+    """Chop regime based on Bollinger Band bandwidth compression."""
+    CHOP = "CHOP"           # BB bandwidth compressed (range-bound, mean reverting)
+    TRENDING = "TRENDING"   # BB bandwidth expanded (trending market)
 
 
 @dataclass
@@ -204,4 +211,86 @@ def detect_trend_regime(
         ema200_slope=float(ema200_slope),
         price_vs_ema200=float(price_vs_ema200),
         is_strong_downtrend=(regime == TrendRegime.STRONG_DOWNTREND),
+    )
+
+
+@dataclass
+class ChopRegimeResult:
+    """Result of chop regime detection."""
+    regime: ChopRegime
+    bb_bandwidth: float      # Current BB bandwidth (upper - lower) / middle
+    percentile: float        # Percentile rank of current bandwidth
+    is_chop: bool            # Convenience flag
+    
+    def to_dict(self) -> dict:
+        return {
+            "regime": self.regime.value,
+            "bb_bandwidth": self.bb_bandwidth,
+            "percentile": self.percentile,
+            "is_chop": self.is_chop,
+        }
+
+
+def detect_chop_regime(
+    bb_upper: pd.Series,
+    bb_lower: pd.Series,
+    bb_middle: pd.Series,
+    chop_percentile: float = 25,
+    lookback_bars: int = 100,
+) -> Optional[ChopRegimeResult]:
+    """
+    Detect chop regime based on Bollinger Band bandwidth compression.
+    
+    Chop = narrow BB bandwidth (compression indicates range-bound market)
+    Trending = wide BB bandwidth (expansion indicates directional move)
+    
+    Args:
+        bb_upper: Series of BB upper band values
+        bb_lower: Series of BB lower band values
+        bb_middle: Series of BB middle band (SMA) values
+        chop_percentile: Percentile threshold below which we consider CHOP
+        lookback_bars: Number of bars for percentile calculation
+    
+    Returns:
+        ChopRegimeResult or None if insufficient data
+    """
+    if len(bb_upper) < lookback_bars:
+        return None
+    
+    current_upper = bb_upper.iloc[-1]
+    current_lower = bb_lower.iloc[-1]
+    current_middle = bb_middle.iloc[-1]
+    
+    if any(pd.isna(v) for v in [current_upper, current_lower, current_middle]):
+        return None
+    
+    if current_middle <= 0:
+        return None
+    
+    # Calculate BB bandwidth: (upper - lower) / middle
+    # Also compute historical bandwidth for percentile ranking
+    bandwidth = (bb_upper - bb_lower) / bb_middle
+    current_bandwidth = bandwidth.iloc[-1]
+    
+    if pd.isna(current_bandwidth):
+        return None
+    
+    # Calculate percentile of current bandwidth vs recent history
+    recent_bandwidth = bandwidth.tail(lookback_bars).dropna()
+    if len(recent_bandwidth) < lookback_bars // 2:
+        return None
+    
+    percentile = (recent_bandwidth < current_bandwidth).sum() / len(recent_bandwidth) * 100
+    
+    # Chop when bandwidth is in the lower percentiles (compressed)
+    if percentile <= chop_percentile:
+        regime = ChopRegime.CHOP
+    else:
+        regime = ChopRegime.TRENDING
+    
+    return ChopRegimeResult(
+        regime=regime,
+        bb_bandwidth=float(current_bandwidth),
+        percentile=float(percentile),
+        is_chop=(regime == ChopRegime.CHOP),
     )

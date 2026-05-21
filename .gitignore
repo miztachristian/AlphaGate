@@ -34,3 +34,12 @@ logs/
 # OS
 .DS_Store
 Thumbs.db
+
+# Cache and Local Reports
+cache/
+reports/
+*.json
+*.txt
+!.gitignore
+!.github/
+

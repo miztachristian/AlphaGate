@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-APP_DIR="/opt/trade-app"
+APP_DIR="/opt/trade-app-v2"
 SERVICE_USER="trade-user"
 
 echo "Updating system..."
@@ -31,13 +31,38 @@ source .venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 
+echo "Installing systemd service (trade-app-v2)..."
+sed -i 's/\r$//' deployment/trade-app-v2.service
+cp deployment/trade-app-v2.service /etc/systemd/system/trade-app-v2.service
+sed -i 's/\r$//' /etc/systemd/system/trade-app-v2.service
+systemctl daemon-reload
+systemctl enable trade-app-v2.service
+
 echo "Securing permissions..."
+# Create state.db and cache directories BEFORE setting ownership
+touch state.db
+mkdir -p cache/parquet
+mkdir -p data
+mkdir -p reports
+
 # Give ownership to the service user
 chown -R $SERVICE_USER:$SERVICE_USER $APP_DIR
+
 # Ensure only owner can read .env if it exists
 if [ -f .env ]; then
     chmod 600 .env
     chown $SERVICE_USER:$SERVICE_USER .env
 fi
 
+# Ensure state.db is writable by service user
+chmod 664 state.db
+chown $SERVICE_USER:$SERVICE_USER state.db
+
+# Ensure cache dir is writable
+chmod -R 775 cache
+chown -R $SERVICE_USER:$SERVICE_USER cache
+
 echo "Setup complete. Don't forget to configure your .env file!"
+
+echo "Starting trade-app-v2 service..."
+systemctl restart trade-app-v2.service
