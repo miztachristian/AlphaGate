@@ -1,26 +1,87 @@
 # Trading App Configuration
 
+# =============================================================================
+# Engine Mode Configuration (V2 Feature)
+# =============================================================================
+engine:
+  # v1 = production (no gate, exact current behavior)
+  # v2 = local V2 mode with gate enforcement
+  # shadow = run existing pipeline + log gate decisions without suppressing alerts
+  mode: "v2"
+  # Strategy selection:
+  # "vol_squeeze_only" = Only Volatility Squeeze alerts (74.7% WR, Sharpe 2.42)
+  # "multi_strategy" = Volatility Squeeze (primary) + Ensemble (secondary)
+  # "mean_reversion" = Legacy mean reversion only
+  strategy: "vol_squeeze_only"
+
+# V2 Gate Configuration (only used when engine.mode != v1)
+v2_gate:
+  # Hard filters
+  min_price: 5.0 # NO_GO if price < this (penny stock filter)
+  min_avg_dollar_volume_20d: 20000000 # NO_GO if avg dollar volume < 20M (liquidity filter)
+  # Score filters
+  min_score: 70 # Minimum score to pass (skip low conviction)
+  downtrend_min_score: 80 # Higher bar for downtrend trades
+  # Volatility filters
+  max_atr_pct: 5.0 # Max ATR% - skip ultra-volatile stocks
+  # Toxic regime block (V2.1 key improvement)
+  block_downtrend_high_vol: true # NO_GO on DOWNTREND + HIGH volatility (toxic for mean reversion)
+  # Regime allowances
+  allow_weak_downtrend: true # Allow GO with HIGH scrutiny in weak downtrend + normal vol
+  # Event risk
+  strict_earnings_block: false # Placeholder for future earnings calendar integration
+  block_high_news_risk: false # Don't block on HIGH news risk (annotation only)
+  htf_timeframe: "4h" # Higher timeframe for regime confirmation (future use)
+
+# Calibration Logging (for paper PnL tracking)
+calibration_logging:
+  enabled: true # Enable to log alerts for evaluation
+  hold_hours_by_timeframe:
+    "1h": 24
+    "4h": 72
+    "1d": 168
+
+# =============================================================================
+# Report Delivery Configuration (Weekly Audit)
+# =============================================================================
+report_delivery:
+  enabled: true
+  lookback_days: 7
+  capital_usd_per_alert: 100
+  schedule:
+    report_day: "FRI" # Day of week for scheduled report
+    report_time_utc: "22:30" # Time in UTC for scheduled report
+  email:
+    enabled: true
+    recipients: [christian.onyekwe@yahoo.com] # Add recipient emails here
+    subject_prefix: "[Trade Signals]"
+  telegram:
+    enabled: true # Send weekly report via Telegram
+    chat_id: "" # Uses TELEGRAM_CHAT_ID from .env if empty
+
+# =============================================================================
 # Indicator Parameters
+# =============================================================================
 indicators:
   rsi:
     period: 14
     overbought: 70
     oversold: 30
-  
+
   ema:
     short: 20
     medium: 50
     long: 200
-  
+
   macd:
     fast: 12
     slow: 26
     signal: 9
-  
+
   bollinger:
     period: 20
     std_dev: 2
-  
+
   atr:
     period: 14
 
@@ -28,11 +89,11 @@ indicators:
 risk:
   stop_loss_atr_multiplier: 1.5
   take_profit_atr_multiplier: 2.5
-  position_size_percent: 2.0  # % of capital per trade
+  position_size_percent: 2.0 # % of capital per trade
 
 # Volume Analysis
 volume:
-  spike_multiplier: 1.5  # Volume must be 1.5x average
+  spike_multiplier: 1.5 # Volume must be 1.5x average
 
 # Trading Preferences
 trading:
@@ -42,7 +103,7 @@ trading:
     - "1h"
     - "4h"
     - "1d"
-  
+
   # Default trading pairs
   default_symbols:
     - "BTCUSDT"
@@ -50,8 +111,8 @@ trading:
 
 # Signal Requirements (how many conditions must match)
 signal_strength:
-  minimum_conditions: 2  # At least 2 indicators must align
-  strong_signal_conditions: 3  # 3+ conditions = high confidence
+  minimum_conditions: 2 # At least 2 indicators must align
+  strong_signal_conditions: 3 # 3+ conditions = high confidence
 
 # Data Quality Settings
 data_quality:
@@ -60,20 +121,20 @@ data_quality:
     "1h": 350
     "4h": 250
     "1d": 200
-  
+
   # Gap detection
   # Note: Stock markets have normal gaps due to market hours (9:30 AM - 4:00 PM ET)
   # - Overnight gaps: ~17 hours (17x for 1h bars)
-  # - Weekend gaps: ~65 hours (65x for 1h bars)  
+  # - Weekend gaps: ~65 hours (65x for 1h bars)
   # - Holiday gaps: up to ~113 hours (113x for 1h bars, e.g., Christmas weekend)
   # Set multiplier high enough to allow normal market gaps
-  max_gaps_in_lookback: 5  # Max allowed gaps in lookback period (weekends + holidays)
+  max_gaps_in_lookback: 5 # Max allowed gaps in lookback period (weekends + holidays)
   gap_lookback_bars: 200
-  max_single_gap_multiplier: 120.0  # Gap > 120x interval = bad data (allows 5-day holidays)
-  
+  max_single_gap_multiplier: 120.0 # Gap > 120x interval = bad data (allows 5-day holidays)
+
   # Drop incomplete (in-progress) candles
   drop_partial_candles: true
-  
+
   # Use adjusted vs unadjusted data (unadjusted recommended for intraday)
   use_adjusted: false
 
@@ -81,48 +142,48 @@ data_quality:
 market_status:
   # Check market status before scanning (saves API calls when market is closed)
   check_before_scan: true
-  
+
   # Allow scanning during extended hours (pre-market 4am-9:30am, after-hours 4pm-8pm ET)
   allow_extended_hours: true
-  
+
   # If market status API fails, should we proceed with scan?
   fallback_on_error: true
 
 # Mean Reversion Setup (MEAN_REVERSION_BB_RECLAIM)
 mean_reversion:
   enabled: true
-  
+
   # Bollinger Band reclaim settings
   bb_period: 20
   bb_std_dev: 2.0
-  lookback_overshoot: 5  # Look for overshoot in last N bars
-  
+  lookback_overshoot: 5 # Look for overshoot in last N bars
+
   # RSI cross confirmation
-  rsi_cross_threshold: 35  # RSI crosses up through this level
+  rsi_cross_threshold: 35 # RSI crosses up through this level
   rsi_period: 14
-  
+
   # Volatility regime (ATR%)
   vol_regime:
-    panic_percentile: 90  # ATR% >= 90th percentile = PANIC
-    dead_percentile: 20   # ATR% <= 20th percentile = DEAD
+    panic_percentile: 90 # ATR% >= 90th percentile = PANIC
+    dead_percentile: 20 # ATR% <= 20th percentile = DEAD
     lookback_bars: 200
-  
+
   # Trend regime (EMA200)
   trend_regime:
-    ema_slope_lookback: 20  # Bars to measure EMA200 slope
-    strong_downtrend_atr_threshold: 1.0  # Price > 1 ATR below EMA200
-  
+    ema_slope_lookback: 20 # Bars to measure EMA200 slope
+    strong_downtrend_atr_threshold: 1.0 # Price > 1 ATR below EMA200
+
   # Entry zone
-  entry_zone_pct: 0.5  # +/- 0.5% from trigger close
-  
+  entry_zone_pct: 0.5 # +/- 0.5% from trigger close
+
   # Scoring adjustments
   scoring:
     base_score: 60
-    strong_rsi_bonus: 15  # RSI >= threshold + 5
-    low_vol_bonus: 10     # ATR% below 70th percentile
-    good_trend_bonus: 10  # Not strong downtrend
-    low_volume_penalty: 15  # Volume < 70% of SMA20
-  
+    strong_rsi_bonus: 15 # RSI >= threshold + 5
+    low_vol_bonus: 10 # ATR% below 70th percentile
+    good_trend_bonus: 10 # Not strong downtrend
+    low_volume_penalty: 15 # Volume < 70% of SMA20
+
   # Hold window expectations
   hold_window:
     "1h": "6-24h"
@@ -132,17 +193,17 @@ mean_reversion:
 # News Risk Settings (using Polygon.io News API)
 news:
   enabled: true
-  
+
   # Cache TTL in minutes (reduces API calls)
   cache_ttl_minutes: 30
-  
+
   # Lookback hours per timeframe (auto-selected based on timeframe)
   # Can be overridden in CLI with --news-lookback-hours
   lookback_by_timeframe:
     "1h": 24
     "4h": 48
     "1d": 72
-  
+
   # Risk labeling keywords (headlines only, no sentiment scoring)
   # HIGH = potential binary events, legal issues
   high_risk_keywords:
@@ -158,7 +219,7 @@ news:
     - "delisting"
     - "subpoena"
     - "indictment"
-  
+
   # MEDIUM = market-moving but not binary
   medium_risk_keywords:
     - "downgrade"
@@ -174,9 +235,9 @@ news:
 
 # Alert Settings
 alerts:
-  cooldown_minutes: 60  # Don't repeat same alert within this window
+  cooldown_minutes: 60 # Don't repeat same alert within this window
   max_evidence_bullets: 3
-  
+
   # Logging for calibration
   log_alerts: true
   alert_log_db: "alerts_log.db"
@@ -187,17 +248,17 @@ outcome_eval:
   horizons_1h: [4, 12, 24, 48]
   horizons_4h: [24, 48, 72]
   horizons_1d: [24, 72, 168]
-  
+
   # MFE/MAE calculation uses high/low (true) or close only (false)
   mfe_mae_use_high_low: true
-  
+
   # Tolerance for horizon completion (in bars)
   # If last closed candle is within N bars of horizon_end, consider it complete
   horizon_tolerance_bars: 1
-  
+
   # Hit rule: target/stop levels as ATR multiples
   hit_rule:
     type: "ATR_MULTIPLE"
-    target_atr: 1.0   # Target = entry + 1.0 * ATR (LONG)
-    stop_atr: 0.7     # Stop = entry - 0.7 * ATR (LONG)
+    target_atr: 1.0 # Target = entry + 1.0 * ATR (LONG)
+    stop_atr: 0.7 # Stop = entry - 0.7 * ATR (LONG)
 

@@ -367,11 +367,12 @@ def fetch_stock_ohlcv(
         # CACHE HIT: Fetch only incremental bars
         # Start from 2 intervals before last cached timestamp (overlap buffer)
         fetch_start = latest_cached_ts - (interval_td * 2)
-        fetch_start_str = fetch_start.strftime("%Y-%m-%dT%H:%M:%SZ")
-        # Use date format for end date - works better when market is closed
-        fetch_end_str = now.strftime("%Y-%m-%d")
+        # Use millisecond timestamp for incremental fetch (YYYY-MM-DD not granular enough)
+        fetch_start_str = str(int(fetch_start.timestamp() * 1000))
+        # Use simple date for end date default or timestamp
+        fetch_end_str = str(int(now.timestamp() * 1000))
         
-        logger.debug(f"{ticker}: Cache hit, fetching incremental from {fetch_start_str}")
+        logger.debug(f"{ticker}: Cache hit, fetching incremental from {fetch_start} (ts={fetch_start_str})")
         
         try:
             new_df, bars_fetched = client.get_aggregates(

@@ -1,0 +1,14 @@
+[Unit]
+Description=Trading App V2 Live Runner
+After=network.target
+
+[Service]
+User=trade-user
+WorkingDirectory=/opt/trade-app-v2
+ExecStart=/opt/trade-app-v2/.venv/bin/python /opt/trade-app-v2/run_live_stocks.py --universe data/universe_liquid.csv --timeframe 1h --interval 60
+Restart=always
+RestartSec=10
+EnvironmentFile=/opt/trade-app-v2/.env
+
+[Install]
+WantedBy=multi-user.target

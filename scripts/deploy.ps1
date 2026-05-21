@@ -3,8 +3,8 @@ param(
     [string]$User = "root"
 )
 
-$RemotePath = "/opt/trade-app"
-$ArchiveName = "trade-app-deploy.tar.gz"
+$RemotePath = "/opt/trade-app-v2"
+$ArchiveName = "trade-app-v2-deploy.tar.gz"
 
 Write-Host "Deploying to $User@$ServerIP..." -ForegroundColor Cyan
 
@@ -34,6 +34,7 @@ $RemoteCommands = "mkdir -p $RemotePath && " +
                   "tar -xzf /tmp/$ArchiveName -C $RemotePath && " +
                   "cd $RemotePath && " +
                   "sed -i 's/\r$//' deployment/setup_server.sh && " +
+                  "sed -i 's/\r$//' deployment/trade-app-v2.service && " +
                   "chmod +x deployment/setup_server.sh && " +
                   "./deployment/setup_server.sh && " +
                   "rm /tmp/$ArchiveName"
