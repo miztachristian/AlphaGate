@@ -10,11 +10,11 @@
 Most trading systems fail in the real world. They suffer from "mid-price fantasy," ignore execution friction, blindly trade in toxic market regimes, and fail to track whether the human trader is actually following the system or sabotaging it.
 
 ## 🔑 The AlphaGate Solution
-**AlphaGate (formerly Trade-App-V2)** is a production-ready, professional-grade algorithmic trading workspace. It doesn't just generate signals; it enforces discipline. By combining real-time data from Polygon.io, an ultra-fast DuckDB/Parquet caching layer, and a robust **fail-closed regime gating engine**, AlphaGate ensures you only take the highest-probability setups.
+**AlphaGate** is a production-ready, professional-grade algorithmic trading workspace. It doesn't just generate signals; it enforces discipline. By combining real-time data from Polygon.io, an ultra-fast DuckDB/Parquet caching layer, and a robust **fail-closed regime gating engine**, AlphaGate ensures you only take the highest-probability setups.
 
 ---
 
-## ✨ Why Choose AlphaGate? (Grade A Production Features)
+## ✨ Why AlphaGate?
 
 ### 🛡️ Ironclad Capital Protection (Fail-Closed Gating)
 Every signal must pass our rigorous 10-step **AlphaGate Filter**. If a stock is illiquid, in a panic volatility regime, or exhibiting "falling knife" characteristics, the system blocks the trade. We keep you out of toxic markets so you live to trade another day.
@@ -25,57 +25,13 @@ Stop lying to yourself with perfect backtests. AlphaGate automatically subtracts
 ### 👥 Dual-Track "System vs. Trader" Scorecarding
 Are you actually a good trader, or is the algorithm carrying you? AlphaGate's weekly audit separates the structural edge of the mechanical system from your discretionary execution skill, highlighting exactly where you add value (or introduce behavioral drag).
 
-### 📓 Integrated Command-Line Trade Journal
-Never leave your terminal. Log your decisions, exact fills, and skip rationales (e.g., "News Risk", "Wide Spread") instantly from the CLI. This data feeds directly into your persistent performance audits.
 
 ### 🛑 Automated Portfolio Risk Governor
 Eliminate correlation risk. AlphaGate strictly enforces maximum concurrent position limits (configurable), automatically suppressing new signals if your portfolio is already at maximum exposure.
 
----
 
-## ⚙️ The AlphaGate Engine Under the Hood
 
-AlphaGate operates as an integrated, high-performance pipeline:
 
-```mermaid
-graph TD
-    subgraph Market Data Layer
-        P[Polygon.io REST API] -->|Increment updates| CS[stocks_v2 Cache Store]
-        CS -->|DuckDB / Parquet Cache| MD[Local Market Data Store]
-    end
-
-    subgraph Strategy & Indicator Suite
-        MD -->|OHLCV Candles| IS[Indicator Calculations]
-        IS -->|RSI / EMA / MACD / ATR / Bollinger| SE[Strategy Engine]
-        SE -->|Raw Buy/Sell Alerts| VG[AlphaGate Filter]
-    end
-
-    subgraph The AlphaGate (Hardened V2 Gating)
-        VG -->|Checks Penny Stock & Liquidity| G1{Hard Filters}
-        G1 -->|Passed| G2{Regime Filter}
-        G2 -->|Chop & Volatility Squeeze| G3{Score & Trend}
-        G3 -->|Downtrend Stricter Threshold| GO[Decision: GO]
-        G1 -->|Failed| NOGO[Decision: NO_GO]
-        G2 -->|Failed| NOGO
-        G3 -->|Failed| NOGO
-    end
-
-    subgraph Execution & Risk
-        GO -->|Check Position Limits| RG{Risk Governor}
-        RG -->|Under limit| AN[Active Alert Emitted]
-        RG -->|At limit| NOGO
-    end
-
-    subgraph Post-Trade Auditing
-        AN -->|Persistent Log| DB[(SQLite State Store)]
-        DB -->|Manual Action / Exit Fill| Journal[Journal CLI]
-        Journal -->|Log taken/skipped| DB
-        DB -->|Audit Data| Audit[Weekly Audit Engine]
-        Audit -->|Dual Scoreboard: System vs Trader| Report[Performance Reports]
-    end
-```
-
----
 
 ## 🧠 Smart Strategy Generation
 
@@ -122,9 +78,6 @@ POLYGON_API_KEY=your_polygon_api_key
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 TELEGRAM_CHAT_ID=your_telegram_chat_id
 ```
-
-> [!IMPORTANT]
-> Never commit your `.env` file. It contains your private keys.
 
 ---
 
@@ -182,10 +135,10 @@ python -m src.reporting.weekly_audit --lookback-days 7
 
 AlphaGate is modular and built to scale. Dive into the core files:
 
-* **[gate.py](file:///c:/Users/chris/Desktop/trade-app-v2/src/v2/gate.py)**: The brain of the fail-closed regime filter.
-* **[weekly_audit.py](file:///c:/Users/chris/Desktop/trade-app-v2/src/reporting/weekly_audit.py)**: The dual-track audit engine.
-* **[stocks_v2.py](file:///c:/Users/chris/Desktop/trade-app-v2/src/marketdata/stocks_v2.py)**: The resilient DuckDB cache layer.
-* **[config.yaml](file:///c:/Users/chris/Desktop/trade-app-v2/config.yaml)**: Your central command for tweaking indicator sensitivity and risk limits.
+* **[gate.py]**: The brain of the fail-closed regime filter.
+* **[weekly_audit.py]**: The dual-track audit engine.
+* **[stocks_v2.py]**: The resilient DuckDB cache layer.
+* **[config.yaml]**: Your central command for tweaking indicator sensitivity and risk limits.
 
 ---
 
