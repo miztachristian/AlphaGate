@@ -64,7 +64,7 @@ flowchart TD
     class BLK block;
 ```
 
-**The gate is the product.** Every candidate signal must clear all ten checks — regime, liquidity, volatility state, falling-knife detection and portfolio exposure — before it can ever reach you. Anything that fails is suppressed by default, not passed through with a warning.
+**The gate is the product.** Every candidate signal must clear all ten checks (regime, liquidity, volatility state, falling-knife detection and portfolio exposure) before it can ever reach you. Anything that fails is suppressed by default, not passed through with a warning.
 
 ---
 
