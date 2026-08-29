@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" fill="none" role="img" aria-label="AlphaGate - Algorithmic Trading and Regime Gating Engine">
+  <defs>
+    <linearGradient id="brand" x1="0" y1="0" x2="1" y2="0.6">
+      <stop offset="0" stop-color="#22d3ee"/><stop offset="0.5" stop-color="#38bdf8"/><stop offset="1" stop-color="#818cf8"/>
+    </linearGradient>
+    <linearGradient id="pillar" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#38bdf8"/><stop offset="1" stop-color="#0ea5e9"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <radialGradient id="gC" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#22d3ee" stop-opacity="0.20"/><stop offset="1" stop-color="#22d3ee" stop-opacity="0"/></radialGradient>
+    <radialGradient id="gI" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#818cf8" stop-opacity="0.18"/><stop offset="1" stop-color="#818cf8" stop-opacity="0"/></radialGradient>
+    <pattern id="grid" width="42" height="42" patternUnits="userSpaceOnUse"><path d="M42 0H0V42" fill="none" stroke="#131c2b" stroke-width="1"/></pattern>
+    <clipPath id="wc"><text x="196" y="140" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="68" font-weight="800" letter-spacing="-2.5">AlphaGate</text></clipPath>
+    <linearGradient id="fade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="1"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient>
+    <mask id="sm"><rect width="1200" height="300" fill="url(#fade)"/></mask>
+  </defs>
+
+  <rect width="1200" height="300" fill="#070b12"/>
+  <rect width="1200" height="300" fill="url(#grid)" opacity="0.6"/>
+  <ellipse cx="150" cy="18" rx="470" ry="270" fill="url(#gC)"/>
+  <ellipse cx="1040" cy="292" rx="500" ry="290" fill="url(#gI)"/>
+
+  <g mask="url(#sm)">
+    <rect x="0" y="0" width="1200" height="2" fill="#38bdf8">
+      <animate attributeName="y" values="18;282;18" dur="8.5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0.42;0" dur="8.5s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <!-- logo mark: shield gate -->
+  <g transform="translate(74,92) scale(0.60)">
+    <path d="M100 16 L170 46 V104 C170 146 138 174 100 186 C62 174 30 146 30 104 V46 Z"
+          fill="#0b1220" stroke="url(#pillar)" stroke-width="7" stroke-linejoin="round"/>
+    <rect x="62" y="62" width="17" height="46" rx="5" fill="url(#pillar)"/>
+    <rect x="121" y="62" width="17" height="46" rx="5" fill="url(#pillar)"/>
+    <rect x="62" y="118" width="76" height="15" rx="7" fill="#0ea5e9" opacity="0.55"/>
+    <path d="M84 150 L96 162 L120 134" fill="none" stroke="#34d399" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="196" y="140" font-family="Segoe UI,Helvetica,Arial,sans-serif" font-size="68" font-weight="800" letter-spacing="-2.5" fill="url(#brand)">AlphaGate</text>
+  <g clip-path="url(#wc)">
+    <rect x="-300" y="66" width="175" height="132" fill="url(#shine)" transform="skewX(-20)">
+      <animate attributeName="x" values="-300;800" dur="3.8s" repeatCount="indefinite"/>
+    </rect>
+  </g>
+
+  <text x="199" y="178" font-family="JetBrains Mono,Courier New,monospace" font-size="16" letter-spacing="3.4" fill="#94a3b8">REGIME GATING &amp; EXECUTION DISCIPLINE</text>
+
+  <g font-family="JetBrains Mono,Courier New,monospace" font-size="13" font-weight="600">
+    <g transform="translate(199,202)"><rect width="122" height="28" rx="14" fill="#38bdf8" fill-opacity="0.10" stroke="#38bdf8" stroke-opacity="0.38"/><text x="61" y="18.5" text-anchor="middle" fill="#7dd3fc">10-STEP GATE</text></g>
+    <g transform="translate(331,202)"><rect width="124" height="28" rx="14" fill="#38bdf8" fill-opacity="0.10" stroke="#38bdf8" stroke-opacity="0.38"/><text x="62" y="18.5" text-anchor="middle" fill="#7dd3fc">15 BPS FRICTION</text></g>
+    <g transform="translate(465,202)"><rect width="106" height="28" rx="14" fill="#34d399" fill-opacity="0.10" stroke="#34d399" stroke-opacity="0.38"/><text x="53" y="18.5" text-anchor="middle" fill="#6ee7b7">185 TESTS</text></g>
+  </g>
+
+  <!-- ===== the gate: signals arrive, most are blocked, one passes ===== -->
+  <g>
+    <!-- incoming rail -->
+    <line x1="700" y1="135" x2="960" y2="135" stroke="#1e293b" stroke-width="1" stroke-dasharray="4 6"/>
+    <text x="700" y="76" font-family="JetBrains Mono,Courier New,monospace" font-size="11.5" letter-spacing="2" fill="#64748b">SIGNALS</text>
+
+    <!-- gate pillars -->
+    <rect x="972" y="52" width="12" height="66" rx="5" fill="url(#pillar)"/>
+    <rect x="972" y="152" width="12" height="66" rx="5" fill="url(#pillar)"/>
+    <rect x="966" y="118" width="24" height="34" rx="4" fill="#f87171" opacity="0.18"/>
+
+    <!-- blocked signals -->
+    <circle r="7" cy="82" fill="#38bdf8">
+      <animate attributeName="cx" values="706;966;966" keyTimes="0;0.5;1" dur="5s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.08;0.5;0.58;1" dur="5s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="7" cy="104" fill="#38bdf8">
+      <animate attributeName="cx" values="706;966;966" keyTimes="0;0.5;1" dur="5s" begin="-1.1s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.08;0.5;0.58;1" dur="5s" begin="-1.1s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="7" cy="168" fill="#38bdf8">
+      <animate attributeName="cx" values="706;966;966" keyTimes="0;0.5;1" dur="5s" begin="-2.3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.08;0.5;0.58;1" dur="5s" begin="-2.3s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="7" cy="190" fill="#38bdf8">
+      <animate attributeName="cx" values="706;966;966" keyTimes="0;0.5;1" dur="5s" begin="-3.4s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;0;0" keyTimes="0;0.08;0.5;0.58;1" dur="5s" begin="-3.4s" repeatCount="indefinite"/>
+    </circle>
+
+    <!-- block flashes -->
+    <g stroke="#f87171" stroke-width="3.2" stroke-linecap="round" opacity="0">
+      <path d="M958 76 L972 90 M972 76 L958 90"><animate attributeName="opacity" values="0;0;1;0;0" keyTimes="0;0.5;0.56;0.68;1" dur="5s" repeatCount="indefinite"/></path>
+    </g>
+    <g stroke="#f87171" stroke-width="3.2" stroke-linecap="round">
+      <path d="M958 184 L972 198 M972 184 L958 198" opacity="0"><animate attributeName="opacity" values="0;0;1;0;0" keyTimes="0;0.5;0.56;0.68;1" dur="5s" begin="-3.4s" repeatCount="indefinite"/></path>
+    </g>
+
+    <!-- the one that passes -->
+    <circle r="8.5" cy="135" fill="#34d399">
+      <animate attributeName="cx" values="706;1152" dur="5s" begin="-1.7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;1;1;1;0" keyTimes="0;0.08;0.6;0.92;1" dur="5s" begin="-1.7s" repeatCount="indefinite"/>
+    </circle>
+    <circle r="8.5" cy="135" fill="none" stroke="#34d399" stroke-width="2" opacity="0">
+      <animate attributeName="r" values="9;24" dur="5s" begin="-1.7s" repeatCount="indefinite" keyTimes="0;1"/>
+      <animate attributeName="cx" values="978;978" dur="5s" begin="-1.7s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0;0;0.85;0;0" keyTimes="0;0.55;0.61;0.74;1" dur="5s" begin="-1.7s" repeatCount="indefinite"/>
+    </circle>
+
+    <text x="1020" y="112" font-family="JetBrains Mono,Courier New,monospace" font-size="11.5" letter-spacing="2" fill="#34d399">PASS</text>
+    <text x="880" y="240" font-family="JetBrains Mono,Courier New,monospace" font-size="11.5" letter-spacing="2" fill="#f87171">FAIL-CLOSED</text>
+  </g>
+
+  <g transform="translate(706,262)" font-family="JetBrains Mono,Courier New,monospace">
+    <circle r="5" fill="#38bdf8"><animate attributeName="opacity" values="1;0.35;1" dur="1.9s" repeatCount="indefinite"/></circle>
+    <circle r="5" fill="none" stroke="#38bdf8" stroke-width="1.5"><animate attributeName="r" values="5;16" dur="1.9s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0" dur="1.9s" repeatCount="indefinite"/></circle>
+    <text x="16" y="4" font-size="12.5" letter-spacing="1.4" fill="#7dd3fc">REGIME  ·  LIQUIDITY  ·  VOLATILITY  ·  EXPOSURE</text>
+  </g>
+</svg>

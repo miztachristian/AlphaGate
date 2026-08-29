@@ -1,7 +1,23 @@
 <div align="center">
+
+<img src="assets/logo.svg" alt="AlphaGate" width="104" />
+
+<img src="assets/banner.svg" alt="AlphaGate - Algorithmic Trading &amp; Regime Gating Engine" width="100%" />
+
+<br/>
+
   <h1>🚀 AlphaGate</h1>
   <p><strong>The Ultimate Algorithmic Trading & Regime Gating Engine</strong></p>
   <p><em>Bridge the gap between theoretical signals and disciplined, real-world execution.</em></p>
+
+![Python](https://img.shields.io/badge/Python-3.11-38bdf8?style=flat-square&logo=python&logoColor=white)
+![Data](https://img.shields.io/badge/Data-Polygon.io-22d3ee?style=flat-square)
+![Cache](https://img.shields.io/badge/Cache-DuckDB%20%2B%20Parquet-818cf8?style=flat-square)
+![Gate](https://img.shields.io/badge/Gate-fail--closed-f87171?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-185%2F185-34d399?style=flat-square)
+
+[**Architecture**](#-system-architecture) &middot; [Why AlphaGate](#-why-alphagate) &middot; [Get Started](#-get-started-with-alphagate) &middot; [CLI](#-master-your-workflow-cli-reference)
+
 </div>
 
 ---
@@ -11,6 +27,44 @@ Most trading systems fail in the real world. They suffer from "mid-price fantasy
 
 ## 🔑 The AlphaGate Solution
 **AlphaGate** is a production-ready, professional-grade algorithmic trading workspace. It doesn't just generate signals; it enforces discipline. By combining real-time data from Polygon.io, an ultra-fast DuckDB/Parquet caching layer, and a robust **fail-closed regime gating engine**, AlphaGate ensures you only take the highest-probability setups.
+
+---
+
+## 🏗️ System Architecture
+
+```mermaid
+flowchart TD
+    P["Polygon.io<br/>REST + Flat Files"] -->|rate_limiter| MD
+    U["universe<br/>loader · relative_strength"] --> MD
+    MD["marketdata<br/>stocks_v2 · cache_store"] -->|"DuckDB / Parquet cache<br/>90%+ fewer API calls"| IND
+    IND["indicators<br/>ema · bollinger · atr · macd"] --> STR
+    STR["strategy<br/>engine · ensemble<br/>mean_reversion · momentum_breakout"] --> GATE
+    NEWS["news<br/>polygon_news_client · risk_labeler"] --> GATE
+
+    GATE{"v2/gate.py<br/>10-step fail-closed filter"}
+    GATE -->|BLOCKED| BLK["Signal suppressed<br/>regime · liquidity · volatility · exposure"]
+    GATE -->|PASS| NTF["notify<br/>telegram · email"]
+
+    NTF --> JRN["journal<br/>taken / skipped / exit"]
+    JRN --> ST[("state<br/>sqlite_store")]
+    EVL["evaluation<br/>outcome_logger"] --> RPT
+    ST --> RPT["reporting<br/>weekly_audit"]
+    RPT --> SCR["System vs Trader scorecard<br/>15 bps friction applied"]
+    BT["backtest<br/>engine"] -.->|validates| STR
+
+    classDef data fill:#08171f,stroke:#22d3ee,color:#67e8f9;
+    classDef eng  fill:#0b1220,stroke:#38bdf8,color:#7dd3fc;
+    classDef gate fill:#1c1020,stroke:#818cf8,color:#a5b4fc;
+    classDef pass fill:#08190f,stroke:#34d399,color:#6ee7b7;
+    classDef block fill:#1f0d0d,stroke:#f87171,color:#fca5a5;
+    class P,U,MD,NEWS data;
+    class IND,STR,BT,EVL eng;
+    class GATE gate;
+    class NTF,JRN,ST,RPT,SCR pass;
+    class BLK block;
+```
+
+**The gate is the product.** Every candidate signal must clear all ten checks — regime, liquidity, volatility state, falling-knife detection and portfolio exposure — before it can ever reach you. Anything that fails is suppressed by default, not passed through with a warning.
 
 ---
 
